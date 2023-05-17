@@ -5,6 +5,7 @@ import { SlotManagementModule } from './slot-management/slot-management.module';
 import { BookingModule } from './booking/booking.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { IamModule } from './iam/iam.module';
 
 @Module({
   imports: [
@@ -23,9 +24,8 @@ import { NotificationsModule } from './notifications/notifications.module';
           type: configService.get<'postgres'>('DB_TYPE'),
           username: configService.get<string>('POSTGRES_USER'),
           password: configService.get<string>('POSTGRES_PASSWORD'),
-          entities: [__dirname + '/**/*.entity.ts'],
+          entities: [__dirname + '/**/*.entity.js'],
           synchronize: true,
-          // autoLoadEntities: true,
         };
       },
     }),
@@ -33,6 +33,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     BookingModule,
     UsersModule,
     NotificationsModule,
+    IamModule,
   ],
   controllers: [],
   providers: [],
