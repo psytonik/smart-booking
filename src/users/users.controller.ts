@@ -4,15 +4,17 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiTags } from '@nestjs/swagger';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
+import { Role } from './enums/role.enum';
+import { Roles } from '../iam/authorization/decorators/roles.decorator';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Roles(Role.Admin)
   @Get()
   findAll(@ActiveUser() user: ActiveUserData) {
-    console.log(user);
     return this.usersService.findAll();
   }
 
