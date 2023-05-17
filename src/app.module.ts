@@ -23,8 +23,9 @@ import { NotificationsModule } from './notifications/notifications.module';
           type: configService.get<'postgres'>('DB_TYPE'),
           username: configService.get<string>('POSTGRES_USER'),
           password: configService.get<string>('POSTGRES_PASSWORD'),
+          entities: [__dirname + '/**/*.entity.ts'],
           synchronize: true,
-          autoLoadEntities: true,
+          // autoLoadEntities: true,
         };
       },
     }),
