@@ -1,10 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { SignUpDto } from './dto/sign-up.dto.ts';
+import { SignUpDto } from './dto/sign-up.dto';
 import { AuthenticationService } from './authentication.service';
-import { SignInDto } from './dto/sign-in.dto.ts';
+import { SignInDto } from './dto/sign-in.dto';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Auth } from './decorator/auth.decorator';
 import { AuthType } from './enums/auth-type.enum';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @ApiTags('Authentication')
 @Auth(AuthType.None)
@@ -23,5 +24,12 @@ export class AuthenticationController {
   @Post('sign-in')
   async signIn(@Body() dto: SignInDto): Promise<{ accessToken: string }> {
     return await this.authService.signIn(dto);
+  }
+
+  @ApiOperation({ summary: 'Refresh Token' })
+  @HttpCode(HttpStatus.OK)
+  @Post('refresh-tokens')
+  async refreshToken(@Body() refreshToken: RefreshTokenDto) {
+    return await this.authService.refreshToken(refreshToken);
   }
 }
