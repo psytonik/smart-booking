@@ -1,47 +1,40 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { BookingService } from './booking.service';
-import { CreateBookingDto } from './dto/create-booking.dto';
-import { UpdateBookingDto } from './dto/update-booking.dto';
+import { ReserveSlotDto } from './dto/reserveSlot.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { ActiveUser } from '../iam/decorators/active-user.decorator';
+import { ActiveUserData } from '../iam/interface/active-user-data.interface';
+import { Auth } from '../iam/authentication/decorator/auth.decorator';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum';
+import { Slot } from '../slot-management/entities/slot.entity';
 
 @ApiTags('Booking')
 @Controller('booking')
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
-  @Post()
-  create(@Body() createBookingManagementDto: CreateBookingDto) {
-    return this.bookingService.create(createBookingManagementDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.bookingService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.bookingService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateBookingManagementDto: UpdateBookingDto,
+  @Post(':businessId')
+  create(
+    @Param('businessId') businessId: string,
+    @Body() reserveSlotDto: ReserveSlotDto,
+    @ActiveUser() user: ActiveUserData,
   ) {
-    return this.bookingService.update(+id, updateBookingManagementDto);
+    return this.bookingService.reserveSlot(reserveSlotDto, businessId, user);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.bookingService.remove(+id);
+  @Auth(AuthType.None)
+  @Get('/business/:businessId')
+  async availableSlots(
+    @Param('businessId') businessId: string,
+  ): Promise<Slot[]> {
+    return await this.bookingService.availableSlots(businessId);
+  }
+
+  @Get('/slot/:id')
+  async findReservedSlotById(
+    @Param('id') bookedSlotId: string,
+    @ActiveUser() currentUser: ActiveUserData,
+  ) {
+    return await this.bookingService.findOne(bookedSlotId, currentUser);
   }
 }

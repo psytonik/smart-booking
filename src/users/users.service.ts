@@ -27,8 +27,4 @@ export class UsersService {
     await this.userRepository.update(user, updateUserDto);
     return await this.findOne(id);
   }
-
-  remove(id: number) {
-    return `This action removes a #${id} user`;
-  }
 }

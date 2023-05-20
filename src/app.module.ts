@@ -6,6 +6,7 @@ import { BookingModule } from './booking/booking.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { IamModule } from './iam/iam.module';
+import { BusinessModule } from './business/business.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { IamModule } from './iam/iam.module';
     UsersModule,
     NotificationsModule,
     IamModule,
+    BusinessModule,
   ],
   controllers: [],
   providers: [],
