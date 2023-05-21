@@ -3,7 +3,7 @@ import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Business } from './entities/business.entity';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
@@ -13,6 +13,7 @@ import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
 
+  @ApiBearerAuth()
   @Post('/open')
   async create(
     @Body() createBusinessDto: CreateBusinessDto,

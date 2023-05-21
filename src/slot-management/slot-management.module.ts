@@ -4,10 +4,10 @@ import { SlotManagementController } from './slot-management.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Slot } from './entities/slot.entity';
 import { User } from '../users/entities/user.entity';
-import { Weekly } from './entities/weekly.entity';
+import { Business } from '../business/entities/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Slot, User, Weekly])],
+  imports: [TypeOrmModule.forFeature([Slot, User, Business])],
   controllers: [SlotManagementController],
   providers: [SlotManagementService],
   exports: [SlotManagementService],

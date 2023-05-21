@@ -4,11 +4,9 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
-  JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
-import { Weekly } from '../../slot-management/entities/weekly.entity';
 
 @Entity()
 export class Business {
@@ -38,8 +36,4 @@ export class Business {
 
   @OneToMany(() => Slot, (dailySlots) => dailySlots.business, { eager: true })
   slots: Slot[];
-
-  @OneToMany(() => Weekly, (workDays) => workDays.business)
-  @JoinColumn()
-  businessWorkDays: Weekly[];
 }

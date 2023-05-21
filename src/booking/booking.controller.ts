@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
@@ -13,6 +13,7 @@ import { Slot } from '../slot-management/entities/slot.entity';
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
+  @ApiBearerAuth()
   @Post(':businessId')
   create(
     @Param('businessId') businessId: string,
@@ -30,6 +31,7 @@ export class BookingController {
     return await this.bookingService.availableSlots(businessId);
   }
 
+  @ApiBearerAuth()
   @Get('/slot/:id')
   async findReservedSlotById(
     @Param('id') bookedSlotId: string,

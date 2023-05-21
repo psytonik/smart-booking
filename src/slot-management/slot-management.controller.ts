@@ -7,6 +7,7 @@ import { Role } from '../users/enums/role.enum';
 import { Slot } from './entities/slot.entity';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
+import { WeeklySlotsDto } from './dto/weeklySlots.dto';
 
 @ApiBearerAuth()
 @Roles(Role.Business, Role.Employee, Role.Admin)
@@ -21,6 +22,18 @@ export class SlotManagementController {
     @ActiveUser() user: ActiveUserData,
   ): Promise<Slot[]> {
     return this.slotManagementService.setDailySlots(dailySlotsDto, user);
+  }
+
+  @Post('weekly')
+  async setWeeklySlots(
+    @Body() dailySlotsDto: DailySlotsDto,
+    @Body() weeklySlotsDto: WeeklySlotsDto,
+    @ActiveUser() currentUser: ActiveUserData,
+  ): Promise<Slot[]> {
+    return await this.slotManagementService.setWeeklySlots(
+      weeklySlotsDto,
+      currentUser,
+    );
   }
 
   @Get()

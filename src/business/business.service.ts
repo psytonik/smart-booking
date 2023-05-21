@@ -36,6 +36,16 @@ export class BusinessService {
   }
 
   async findBusiness(): Promise<Business[]> {
-    return await this.businessRepo.find();
+    return await this.businessRepo
+      .createQueryBuilder('business')
+      .select([
+        'business.id',
+        'business.name',
+        'business.description',
+        'business.address',
+        'business.email',
+        'business.phoneNumber',
+      ])
+      .getMany();
   }
 }

@@ -14,6 +14,7 @@ async function bootstrap() {
     .setTitle('Smart Booking Api')
     .setDescription('Api for book services')
     .setVersion('0.1')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
 
