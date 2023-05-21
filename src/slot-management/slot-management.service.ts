@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { DailySlotsDto } from './dto/dailySlots.dto';
 import {
   addMinutes,
@@ -80,21 +84,21 @@ export class SlotManagementService {
     const user = await this.findUser(currentUser);
 
     const date = startOfToday();
-    await this.checkSlotsExistence(date, user);
+    await this.checkSlotsExistenceByDate(date, user);
 
     const openingHour = this.parseTime(dailySlotsDto.openingHours);
     const closingHour = this.parseTime(dailySlotsDto.closingHours);
     const lunchDuration = this.parseTime(dailySlotsDto.lunchDuration, 'min');
     const timePerClient = this.parseTime(dailySlotsDto.timePerClient, 'min');
-
-    let start = dailySlotsDto.startDate || startOfToday();
+    let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
+    console.log(start, 'START');
     start = this.setTime(start, openingHour);
     const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
     const lunchStartSlot = Math.floor(totalSlots / 2);
     const lunchEndSlot =
       lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
 
-    const dailySlots = this.createSlots(
+    let dailySlots = this.createSlots(
       totalSlots,
       start,
       timePerClient,
@@ -102,11 +106,12 @@ export class SlotManagementService {
       lunchEndSlot,
       user,
     );
+    dailySlots = await this.checkExistingSlotsForDay(dailySlots);
 
     return await this.slotRepository.save(dailySlots);
   }
 
-  async findAll(currentUser: ActiveUserData) {
+  async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
 
     if (user.role == 'admin') return this.slotRepository.find();
@@ -148,7 +153,7 @@ export class SlotManagementService {
         );
 
         // Perform the check before slot creation
-        await this.checkSlotsExistence(date, user);
+        await this.checkSlotsExistenceByDate(date, user);
 
         const start = this.setTime(date, openingHour);
         const dailySlots = this.createSlots(
@@ -166,7 +171,7 @@ export class SlotManagementService {
     return this.slotRepository.save(slots);
   }
 
-  private async checkSlotsExistence(date: Date, user: User) {
+  private async checkSlotsExistenceByDate(date: Date, user: User) {
     const existingSlots = await this.slotRepository.find({
       where: {
         business: user.business,
@@ -177,5 +182,23 @@ export class SlotManagementService {
     if (existingSlots.length > 0) {
       throw new ForbiddenException('Slots for this day already exist');
     }
+  }
+
+  private async checkExistingSlotsForDay(slots: Slot[]) {
+    const nonExistingSlots: Slot[] = [];
+
+    for (const slot of slots) {
+      const existingSlot = await this.slotRepository.findOne({
+        where: { startTime: slot.startTime, endTime: slot.endTime },
+      });
+      if (existingSlot) {
+        throw new BadRequestException('Slot with this time already exists');
+      }
+      if (!existingSlot) {
+        nonExistingSlots.push(slot);
+      }
+    }
+
+    return nonExistingSlots;
   }
 }

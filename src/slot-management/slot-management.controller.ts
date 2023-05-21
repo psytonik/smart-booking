@@ -38,6 +38,6 @@ export class SlotManagementController {
 
   @Get()
   findAll(@ActiveUser() user: ActiveUserData): Promise<Slot[]> {
-    return this.slotManagementService.findAll(user);
+    return this.slotManagementService.findAllSlots(user);
   }
 }
