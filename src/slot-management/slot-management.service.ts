@@ -35,6 +35,89 @@ export class SlotManagementService {
     private readonly businessRepository: Repository<Business>,
   ) {}
 
+  async setDailySlots(
+    dailySlotsDto: DailySlotsDto,
+    currentUser: ActiveUserData,
+  ): Promise<Slot[]> {
+    const user = await this.findUser(currentUser);
+
+    const date = startOfToday();
+    await this.checkSlotsExistenceByDate(date, user);
+
+    let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
+    start = this.setTime(start, this.parseTime(dailySlotsDto.openingHours));
+    const { totalSlots, lunchStartSlot, lunchEndSlot } =
+      this.calculateSlots(dailySlotsDto);
+
+    let dailySlots = this.createSlots(
+      totalSlots,
+      start,
+      this.parseTime(dailySlotsDto.timePerClient, 'min'),
+      lunchStartSlot,
+      lunchEndSlot,
+      user,
+    );
+    dailySlots = await this.checkExistingSlotsForDay(dailySlots);
+
+    return await this.slotRepository.save(dailySlots);
+  }
+
+  async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
+    const user = await this.findUser(currentUser);
+
+    if (user.role == 'admin') return this.slotRepository.find();
+
+    return this.slotRepository.findBy({ business: user.business });
+  }
+
+  async setWeeklySlots(
+    weeklySlotsDto: WeeklySlotsDto,
+    currentUser: ActiveUserData,
+  ): Promise<Slot[]> {
+    const user = await this.findUser(currentUser);
+
+    const { totalSlots, lunchStartSlot, lunchEndSlot } =
+      this.calculateSlots(weeklySlotsDto);
+
+    const slots = [];
+    for (let i = 0; i < weeklySlotsDto.weeksAhead; i++) {
+      for (let j = 0; j < weeklySlotsDto.setWorkDays.length; j++) {
+        const workDay = weeklySlotsDto.setWorkDays[j];
+        const date = setDay(
+          startOfWeek(addWeeks(new Date(), i)),
+          [
+            'Sunday',
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+          ].indexOf(workDay),
+        );
+
+        // Perform the check before slot creation
+        await this.checkSlotsExistenceByDate(date, user);
+
+        const start = this.setTime(
+          date,
+          this.parseTime(weeklySlotsDto.openingHours),
+        );
+        const dailySlots = this.createSlots(
+          totalSlots,
+          start,
+          this.parseTime(weeklySlotsDto.timePerClient, 'min'),
+          lunchStartSlot,
+          lunchEndSlot,
+          user,
+        );
+        slots.push(...dailySlots);
+      }
+    }
+
+    return this.slotRepository.save(slots);
+  }
+
   private async findUser(currentUser: ActiveUserData) {
     const user = await this.userRepository.findOneBy({
       email: currentUser.email,
@@ -77,101 +160,10 @@ export class SlotManagementService {
     });
   }
 
-  async setDailySlots(
-    dailySlotsDto: DailySlotsDto,
-    currentUser: ActiveUserData,
-  ): Promise<Slot[]> {
-    const user = await this.findUser(currentUser);
-
-    const date = startOfToday();
-    await this.checkSlotsExistenceByDate(date, user);
-
-    const openingHour = this.parseTime(dailySlotsDto.openingHours);
-    const closingHour = this.parseTime(dailySlotsDto.closingHours);
-    const lunchDuration = this.parseTime(dailySlotsDto.lunchDuration, 'min');
-    const timePerClient = this.parseTime(dailySlotsDto.timePerClient, 'min');
-    let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
-    console.log(start, 'START');
-    start = this.setTime(start, openingHour);
-    const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
-    const lunchStartSlot = Math.floor(totalSlots / 2);
-    const lunchEndSlot =
-      lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
-
-    let dailySlots = this.createSlots(
-      totalSlots,
-      start,
-      timePerClient,
-      lunchStartSlot,
-      lunchEndSlot,
-      user,
-    );
-    dailySlots = await this.checkExistingSlotsForDay(dailySlots);
-
-    return await this.slotRepository.save(dailySlots);
-  }
-
-  async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
-    const user = await this.findUser(currentUser);
-
-    if (user.role == 'admin') return this.slotRepository.find();
-
-    return this.slotRepository.findBy({ business: user.business });
-  }
-
-  async setWeeklySlots(
-    weeklySlotsDto: WeeklySlotsDto,
-    currentUser: ActiveUserData,
-  ): Promise<Slot[]> {
-    const user = await this.findUser(currentUser);
-
-    const openingHour = this.parseTime(weeklySlotsDto.openingHours);
-    const closingHour = this.parseTime(weeklySlotsDto.closingHours);
-    const lunchDuration = this.parseTime(weeklySlotsDto.lunchDuration, 'min');
-    const timePerClient = this.parseTime(weeklySlotsDto.timePerClient, 'min');
-
-    const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
-    const lunchStartSlot = Math.floor(totalSlots / 2);
-    const lunchEndSlot =
-      lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
-
-    const slots = [];
-    for (let i = 0; i < weeklySlotsDto.weeksAhead; i++) {
-      for (let j = 0; j < weeklySlotsDto.setWorkDays.length; j++) {
-        const workDay = weeklySlotsDto.setWorkDays[j];
-        const date = setDay(
-          startOfWeek(addWeeks(new Date(), i)),
-          [
-            'Sunday',
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-          ].indexOf(workDay),
-        );
-
-        // Perform the check before slot creation
-        await this.checkSlotsExistenceByDate(date, user);
-
-        const start = this.setTime(date, openingHour);
-        const dailySlots = this.createSlots(
-          totalSlots,
-          start,
-          timePerClient,
-          lunchStartSlot,
-          lunchEndSlot,
-          user,
-        );
-        slots.push(...dailySlots);
-      }
-    }
-
-    return this.slotRepository.save(slots);
-  }
-
-  private async checkSlotsExistenceByDate(date: Date, user: User) {
+  private async checkSlotsExistenceByDate(
+    date: Date,
+    user: User,
+  ): Promise<void> {
     const existingSlots = await this.slotRepository.find({
       where: {
         business: user.business,
@@ -184,7 +176,7 @@ export class SlotManagementService {
     }
   }
 
-  private async checkExistingSlotsForDay(slots: Slot[]) {
+  private async checkExistingSlotsForDay(slots: Slot[]): Promise<Slot[]> {
     const nonExistingSlots: Slot[] = [];
 
     for (const slot of slots) {
@@ -200,5 +192,23 @@ export class SlotManagementService {
     }
 
     return nonExistingSlots;
+  }
+
+  private calculateSlots(dailySlotsDto: DailySlotsDto | WeeklySlotsDto): {
+    totalSlots: number;
+    lunchStartSlot: number;
+    lunchEndSlot: number;
+  } {
+    const openingHour = this.parseTime(dailySlotsDto.openingHours);
+    const closingHour = this.parseTime(dailySlotsDto.closingHours);
+    const lunchDuration = this.parseTime(dailySlotsDto.lunchDuration, 'min');
+    const timePerClient = this.parseTime(dailySlotsDto.timePerClient, 'min');
+
+    const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
+    const lunchStartSlot = Math.floor(totalSlots / 2);
+    const lunchEndSlot =
+      lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
+
+    return { totalSlots, lunchStartSlot, lunchEndSlot };
   }
 }
