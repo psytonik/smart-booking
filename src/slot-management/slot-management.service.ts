@@ -87,7 +87,8 @@ export class SlotManagementService {
     const lunchDuration = this.parseTime(dailySlotsDto.lunchDuration, 'min');
     const timePerClient = this.parseTime(dailySlotsDto.timePerClient, 'min');
 
-    const start = this.setTime(startOfToday(), openingHour);
+    let start = dailySlotsDto.startDate || startOfToday();
+    start = this.setTime(start, openingHour);
     const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
     const lunchStartSlot = Math.floor(totalSlots / 2);
     const lunchEndSlot =
