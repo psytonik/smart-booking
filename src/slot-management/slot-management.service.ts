@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DailySlotsDto } from './dto/dailySlots.dto';
 import {
   addMinutes,
   addWeeks,
@@ -19,11 +18,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Slot } from './entities/slot.entity';
+import { Business } from '../business/entities/business.entity';
+import { User } from '../users/entities/user.entity';
 import { SlotStatus } from './enums/slotStatus.enum';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { User } from '../users/entities/user.entity';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
-import { Business } from '../business/entities/business.entity';
+import { DailySlotsDto } from './dto/dailySlots.dto';
+import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
 
 @Injectable()
 export class SlotManagementService {
@@ -42,10 +43,8 @@ export class SlotManagementService {
   ): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
 
-    const date = startOfToday();
-    await this.checkSlotsExistenceByDate(date, user);
-
     let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
+    await this.checkSlotsExistenceByDate(start, user);
     start = this.setTime(start, this.parseTime(dailySlotsDto.openingHours));
     const { totalSlots, lunchStartSlot, lunchEndSlot } =
       this.calculateSlots(dailySlotsDto);
@@ -205,9 +204,10 @@ export class SlotManagementService {
         startTime: Between(startOfDay(date), endOfDay(date)),
       },
     });
-
-    if (existingSlots.length > 0) {
-      throw new ForbiddenException('Slots for this day already exist');
+    for (const slot of existingSlots) {
+      if (existingSlots.length > 0 && slot.status === SlotStatus.UNAVAILABLE) {
+        throw new ForbiddenException('Slots for this day already exist');
+      }
     }
   }
 
@@ -245,5 +245,58 @@ export class SlotManagementService {
       lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
 
     return { totalSlots, lunchStartSlot, lunchEndSlot };
+  }
+
+  async updateDailySlots(
+    updateDailySlots: UpdateDailySlotsDto,
+    currentUser: ActiveUserData,
+  ) {
+    const user = await this.findUser(currentUser);
+
+    const date = startOfToday();
+    await this.checkSlotsExistenceByDate(date, user);
+
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    const start: Date = this.setTime(
+      date,
+      this.parseTime(updateDailySlots.openingHours),
+    );
+    const { totalSlots, lunchStartSlot, lunchEndSlot } = this.calculateSlots(
+      updateDailySlots as DailySlotsDto,
+    );
+    const updatedSlots: Slot[] = this.createSlots(
+      totalSlots,
+      start,
+      this.parseTime(updateDailySlots.timePerClient, 'min'),
+      lunchStartSlot,
+      lunchEndSlot,
+      user,
+    );
+    const existingSlots: Slot[] = await this.slotRepository.find({
+      where: {
+        business: user.business,
+        startTime: Between(startOfDay(date), endOfDay(date)),
+      },
+    });
+    updatedSlots.forEach((slot, i) => {
+      const existingSlot = existingSlots.find(
+        (s) =>
+          s.startTime.getTime() === slot.startTime.getTime() &&
+          s.endTime.getTime() === slot.endTime.getTime(),
+      );
+      if (existingSlot && existingSlot.status === SlotStatus.UNAVAILABLE) {
+        updatedSlots[i] = existingSlot;
+      }
+    });
+
+    await this.slotRepository.delete({
+      business: user.business,
+      startTime: Between(startOfDay(date), endOfDay(date)),
+    });
+
+    return await this.slotRepository.save(updatedSlots);
   }
 }

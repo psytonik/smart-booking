@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { SlotManagementService } from './slot-management.service';
@@ -23,6 +24,7 @@ import { Slot } from './entities/slot.entity';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
+import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
 
 @ApiBearerAuth()
 @Roles(Role.Business, Role.Employee, Role.Admin)
@@ -75,5 +77,17 @@ export class SlotManagementController {
     @ActiveUser() user: ActiveUserData,
   ): Promise<void> {
     return await this.slotManagementService.closeOpenedSlotsByDate(date, user);
+  }
+
+  @ApiOperation({ summary: 'Date must be formatted by YYYY-MM-DD' })
+  @ApiResponse({ status: 200, description: 'The date successfully updated' })
+  @HttpCode(HttpStatus.OK)
+  @Patch(':date')
+  async updateDailySlots(
+    @Param('date') date: string,
+    @Body() updateSlot: UpdateDailySlotsDto,
+    @ActiveUser() user: ActiveUserData,
+  ) {
+    return this.slotManagementService.updateDailySlots(updateSlot, user);
   }
 }
