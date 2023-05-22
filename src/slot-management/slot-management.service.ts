@@ -140,6 +140,19 @@ export class SlotManagementService {
     return currentDay;
   }
 
+  async closeOpenedSlotsByDate(
+    date: string,
+    user: ActiveUserData,
+  ): Promise<void> {
+    await this.findUser(user);
+    const datesToDelete: Slot[] = await this.getOpenedSlotByDay(date, user);
+    datesToDelete.filter(async (date: Slot): Promise<Slot> => {
+      if (date.status == SlotStatus.AVAILABLE) {
+        return await this.slotRepository.remove(date);
+      }
+    });
+  }
+
   private async findUser(currentUser: ActiveUserData) {
     const user = await this.userRepository.findOneBy({
       email: currentUser.email,
@@ -164,7 +177,7 @@ export class SlotManagementService {
     lunchStartSlot,
     lunchEndSlot,
     user,
-  ) {
+  ): Slot[] {
     return Array.from({ length: totalSlots }).map((_, i) => {
       const slotStart = addMinutes(start, i * timePerClient);
       const slotEnd = addMinutes(slotStart, timePerClient);

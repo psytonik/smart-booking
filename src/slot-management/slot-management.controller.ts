@@ -1,7 +1,22 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { SlotManagementService } from './slot-management.service';
 import { DailySlotsDto } from './dto/dailySlots.dto';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Roles } from '../iam/authorization/decorators/roles.decorator';
 import { Role } from '../users/enums/role.enum';
 import { Slot } from './entities/slot.entity';
@@ -47,7 +62,18 @@ export class SlotManagementController {
   async GetOpenedSlotByDay(
     @Param('date') date: string,
     @ActiveUser() user: ActiveUserData,
-  ) {
+  ): Promise<Slot[]> {
     return this.slotManagementService.getOpenedSlotByDay(date, user);
+  }
+
+  @ApiOperation({ summary: 'Date must be formatted by YYYY-MM-DD' })
+  @ApiResponse({ status: 204, description: 'The date successfully closed' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete(':date')
+  async getAndDeleteOpenedSlotsByDate(
+    @Param('date') date: string,
+    @ActiveUser() user: ActiveUserData,
+  ): Promise<void> {
+    return await this.slotManagementService.closeOpenedSlotsByDate(date, user);
   }
 }
