@@ -1,5 +1,6 @@
-import { IsArray, IsNumber, IsString } from 'class-validator';
+import { IsArray, IsDate, IsNumber, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class WeeklySlotsDto {
   @ApiProperty()
@@ -29,4 +30,9 @@ export class WeeklySlotsDto {
   @ApiProperty()
   @IsString()
   timePerClient: string;
+
+  @ApiProperty()
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  startDate: Date;
 }

@@ -62,14 +62,6 @@ export class SlotManagementService {
     return await this.slotRepository.save(dailySlots);
   }
 
-  async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
-    const user = await this.findUser(currentUser);
-
-    if (user.role == 'admin') return this.slotRepository.find();
-
-    return this.slotRepository.findBy({ business: user.business });
-  }
-
   async setWeeklySlots(
     weeklySlotsDto: WeeklySlotsDto,
     currentUser: ActiveUserData,
@@ -83,8 +75,11 @@ export class SlotManagementService {
     for (let i = 0; i < weeklySlotsDto.weeksAhead; i++) {
       for (let j = 0; j < weeklySlotsDto.setWorkDays.length; j++) {
         const workDay = weeklySlotsDto.setWorkDays[j];
+        const startDate = weeklySlotsDto.startDate
+          ? new Date(weeklySlotsDto.startDate)
+          : new Date();
         const date = setDay(
-          startOfWeek(addWeeks(new Date(), i)),
+          startOfWeek(addWeeks(startDate, i)),
           [
             'Sunday',
             'Monday',
@@ -96,7 +91,6 @@ export class SlotManagementService {
           ].indexOf(workDay),
         );
 
-        // Perform the check before slot creation
         await this.checkSlotsExistenceByDate(date, user);
 
         const start = this.setTime(
@@ -116,6 +110,14 @@ export class SlotManagementService {
     }
 
     return this.slotRepository.save(slots);
+  }
+
+  async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
+    const user = await this.findUser(currentUser);
+
+    if (user.role == 'admin') return this.slotRepository.find();
+
+    return this.slotRepository.findBy({ business: user.business });
   }
 
   private async findUser(currentUser: ActiveUserData) {
