@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { DailySlotsDto } from './dto/dailySlots.dto';
 import {
@@ -118,6 +119,25 @@ export class SlotManagementService {
     if (user.role == 'admin') return this.slotRepository.find();
 
     return this.slotRepository.findBy({ business: user.business });
+  }
+
+  async getOpenedSlotByDay(
+    date: string,
+    currentUser: ActiveUserData,
+  ): Promise<Slot[]> {
+    const user = await this.findUser(currentUser);
+    const targetDate = new Date(date);
+    if (isNaN(targetDate.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+    const currentDay: Slot[] = await this.slotRepository.findBy({
+      business: user.business,
+      startTime: Between(startOfDay(targetDate), endOfDay(targetDate)),
+    });
+    if (currentDay.length == 0) {
+      throw new NotFoundException('For this date no open slots');
+    }
+    return currentDay;
   }
 
   private async findUser(currentUser: ActiveUserData) {
