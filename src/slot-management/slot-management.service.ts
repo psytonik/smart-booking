@@ -204,10 +204,14 @@ export class SlotManagementService {
         startTime: Between(startOfDay(date), endOfDay(date)),
       },
     });
-    for (const slot of existingSlots) {
-      if (existingSlots.length > 0 && slot.status === SlotStatus.UNAVAILABLE) {
-        throw new ForbiddenException('Slots for this day already exist');
-      }
+    const unavailableSlotsExist = existingSlots.some(
+      (slot) => slot.status === SlotStatus.UNAVAILABLE,
+    );
+
+    if (unavailableSlotsExist) {
+      throw new ForbiddenException(
+        'Unavailable slots for this day already exist',
+      );
     }
   }
 

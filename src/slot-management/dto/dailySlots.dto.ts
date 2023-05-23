@@ -28,6 +28,7 @@ export class DailySlotsDto {
   @ApiProperty({
     type: String,
     description: 'time can be between 1 min to 1440 min',
+    required: true,
   })
   @IsString()
   timePerClient: string;
