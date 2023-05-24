@@ -22,7 +22,7 @@ export class Booking {
   @JoinColumn()
   business: Business;
 
-  @ManyToOne(() => User, (user) => user.id)
+  @ManyToOne(() => User, (user) => user.id, { eager: true })
   @JoinColumn()
   user: User;
 
