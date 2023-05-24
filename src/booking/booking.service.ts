@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -42,7 +43,9 @@ export class BookingService {
     });
     const desiredDate = new Date(reserveSlotDto.reserveSlot);
     desiredDate.setSeconds(0, 0);
-
+    if (desiredDate < new Date()) {
+      throw new BadRequestException('Cannot book a slot in the past');
+    }
     const slotToReserve = slots.filter((slot) => {
       const slotStartTime = new Date(slot.startTime);
       slotStartTime.setSeconds(0, 0);
@@ -56,8 +59,13 @@ export class BookingService {
     bookDate.bookSlot = desiredDate;
     bookDate.user = client;
     bookDate.business = business;
-    await this.slotRepository.save(slotToReserve);
+    bookDate.slot = slotToReserve;
+
     await this.bookingRepository.save(bookDate);
+    slotToReserve.bookingBy = await this.bookingRepository.findOneBy({
+      user: client,
+    });
+    await this.slotRepository.save(slotToReserve);
     return bookDate;
   }
 
@@ -65,22 +73,28 @@ export class BookingService {
     const business: Business = await this.businessRepository.findOneBy({
       id: businessId,
     });
-
     return business.slots.filter(
       (slot: Slot): boolean => slot.status === SlotStatus.AVAILABLE,
     );
   }
 
-  async findOne(id, currentUser: ActiveUserData) {
+  async findReservedSlotById(id, currentUser: ActiveUserData) {
     const user: User = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
     const reservedSlotByClient: Booking =
       await this.bookingRepository.findOneBy({ id: id });
-
     if (reservedSlotByClient.user.id !== user.id) {
       throw new ForbiddenException(`this is not you reservation`);
     }
     return reservedSlotByClient;
+  }
+
+  async cancelReservation(id, currentUser: ActiveUserData) {
+    const slotToCancel: Booking = await this.findReservedSlotById(
+      id,
+      currentUser,
+    );
+    console.log(slotToCancel);
   }
 }

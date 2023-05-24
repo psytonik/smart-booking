@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -37,6 +37,18 @@ export class BookingController {
     @Param('id') bookedSlotId: string,
     @ActiveUser() currentUser: ActiveUserData,
   ) {
-    return await this.bookingService.findOne(bookedSlotId, currentUser);
+    return await this.bookingService.findReservedSlotById(
+      bookedSlotId,
+      currentUser,
+    );
+  }
+
+  @ApiBearerAuth()
+  @Delete('/slot/:id')
+  async cancelSlotByCustomer(
+    @Param('id') id: string,
+    @ActiveUser() currentUser: ActiveUserData,
+  ) {
+    return await this.bookingService.cancelReservation(id, currentUser);
   }
 }

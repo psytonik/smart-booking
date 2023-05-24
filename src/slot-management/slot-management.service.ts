@@ -25,6 +25,7 @@ import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
 import { DailySlotsDto } from './dto/dailySlots.dto';
 import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
+import { Role } from '../users/enums/role.enum';
 
 @Injectable()
 export class SlotManagementService {
@@ -41,10 +42,11 @@ export class SlotManagementService {
     dailySlotsDto: DailySlotsDto,
     currentUser: ActiveUserData,
   ): Promise<Slot[]> {
-    const user = await this.findUser(currentUser);
+    const user: User = await this.findUser(currentUser);
+    const business = await this.getBusinessByOwner(user);
 
     let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
-    await this.checkSlotsExistenceByDate(start, user);
+    await this.checkSlotsExistenceByDate(start, business);
     start = this.setTime(start, this.parseTime(dailySlotsDto.openingHours));
     const { totalSlots, lunchStartSlot, lunchEndSlot } =
       this.calculateSlots(dailySlotsDto);
@@ -55,7 +57,7 @@ export class SlotManagementService {
       this.parseTime(dailySlotsDto.timePerClient, 'min'),
       lunchStartSlot,
       lunchEndSlot,
-      user,
+      business,
     );
     dailySlots = await this.checkExistingSlotsForDay(dailySlots);
 
@@ -67,7 +69,7 @@ export class SlotManagementService {
     currentUser: ActiveUserData,
   ): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
-
+    const business = await this.getBusinessByOwner(user);
     const { totalSlots, lunchStartSlot, lunchEndSlot } =
       this.calculateSlots(weeklySlotsDto);
 
@@ -91,19 +93,19 @@ export class SlotManagementService {
           ].indexOf(workDay),
         );
 
-        await this.checkSlotsExistenceByDate(date, user);
+        await this.checkSlotsExistenceByDate(date, business);
 
         const start = this.setTime(
           date,
           this.parseTime(weeklySlotsDto.openingHours),
         );
-        const dailySlots = this.createSlots(
+        const dailySlots: Slot[] = this.createSlots(
           totalSlots,
           start,
           this.parseTime(weeklySlotsDto.timePerClient, 'min'),
           lunchStartSlot,
           lunchEndSlot,
-          user,
+          business,
         );
         slots.push(...dailySlots);
       }
@@ -114,10 +116,11 @@ export class SlotManagementService {
 
   async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
-
+    const business = await this.getBusinessByOwner(user);
     if (user.role == 'admin') return this.slotRepository.find();
-
-    return this.slotRepository.findBy({ business: user.business });
+    return await this.slotRepository.findBy({
+      business,
+    });
   }
 
   async getOpenedSlotByDay(
@@ -152,13 +155,23 @@ export class SlotManagementService {
     });
   }
 
-  private async findUser(currentUser: ActiveUserData) {
+  private async findUser(currentUser: ActiveUserData): Promise<User> {
     const user = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
-    if (!user.business)
+    if (user.role == Role.Client)
       throw new ForbiddenException('you not authorized to open slots');
     return user;
+  }
+
+  private async getBusinessByOwner(user): Promise<Business> {
+    const business: Business = await this.businessRepository.findOneBy({
+      owner: user,
+    });
+    if (business.owner.id !== user.id) {
+      throw new BadRequestException('It is not your business dude');
+    }
+    return business;
   }
 
   private parseTime(time: string, suffix = ''): number {
@@ -175,7 +188,7 @@ export class SlotManagementService {
     timePerClient,
     lunchStartSlot,
     lunchEndSlot,
-    user,
+    business,
   ): Slot[] {
     return Array.from({ length: totalSlots }).map((_, i) => {
       const slotStart = addMinutes(start, i * timePerClient);
@@ -183,7 +196,7 @@ export class SlotManagementService {
       const isDuringLunch = i >= lunchStartSlot && i < lunchEndSlot;
 
       const slot = new Slot();
-      slot.business = user.business;
+      slot.business = business;
       slot.endTime = slotEnd;
       slot.startTime = slotStart;
       slot.status = isDuringLunch
@@ -196,14 +209,15 @@ export class SlotManagementService {
 
   private async checkSlotsExistenceByDate(
     date: Date,
-    user: User,
+    business: Business,
   ): Promise<void> {
     const existingSlots = await this.slotRepository.find({
       where: {
-        business: user.business,
+        business,
         startTime: Between(startOfDay(date), endOfDay(date)),
       },
     });
+
     const unavailableSlotsExist = existingSlots.some(
       (slot) => slot.status === SlotStatus.UNAVAILABLE,
     );
@@ -256,9 +270,9 @@ export class SlotManagementService {
     currentUser: ActiveUserData,
   ) {
     const user = await this.findUser(currentUser);
-
+    const business = await this.getBusinessByOwner(user);
     const date = startOfToday();
-    await this.checkSlotsExistenceByDate(date, user);
+    await this.checkSlotsExistenceByDate(date, business);
 
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format');
@@ -277,7 +291,7 @@ export class SlotManagementService {
       this.parseTime(updateDailySlots.timePerClient, 'min'),
       lunchStartSlot,
       lunchEndSlot,
-      user,
+      business,
     );
     const existingSlots: Slot[] = await this.slotRepository.find({
       where: {

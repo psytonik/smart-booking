@@ -28,10 +28,10 @@ export class Business {
   @Column()
   phoneNumber: string;
 
-  @OneToOne(() => User, (user) => user.business)
+  @OneToOne(() => User, (user) => user.business, { eager: true })
   owner: User;
 
-  @OneToMany(() => User, (user) => user.workplace)
+  @OneToMany(() => User, (user) => user.workplace, { eager: true })
   employees: User[];
 
   @OneToMany(() => Slot, (dailySlots) => dailySlots.business, { eager: true })

@@ -23,7 +23,7 @@ export class User {
   @Column({ enum: Role, default: Role.Client })
   role: Role;
 
-  @OneToOne(() => Business, (business) => business.owner, { eager: true })
+  @OneToOne(() => Business, (business) => business.owner)
   @JoinColumn()
   business: Business;
 

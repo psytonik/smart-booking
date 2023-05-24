@@ -3,10 +3,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Business } from '../../business/entities/business.entity';
+import { Slot } from '../../slot-management/entities/slot.entity';
 
 @Entity()
 export class Booking {
@@ -20,7 +22,11 @@ export class Booking {
   @JoinColumn()
   business: Business;
 
-  @ManyToOne(() => User, (user) => user.id, { eager: true })
+  @ManyToOne(() => User, (user) => user.id)
   @JoinColumn()
   user: User;
+
+  @OneToOne(() => Slot, (slot) => slot.id)
+  @JoinColumn()
+  slot: Slot;
 }
