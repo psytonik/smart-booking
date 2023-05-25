@@ -82,19 +82,45 @@ export class BookingService {
     const user: User = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     const reservedSlotByClient: Booking =
       await this.bookingRepository.findOneBy({ id: id });
-    if (reservedSlotByClient.user.id !== user.id) {
+    if (!reservedSlotByClient) {
+      throw new NotFoundException('Slot not found');
+    }
+    if (reservedSlotByClient?.user.id !== user.id) {
       throw new ForbiddenException(`this is not you reservation`);
     }
     return reservedSlotByClient;
   }
 
   async cancelReservation(id, currentUser: ActiveUserData) {
+    if (!id) {
+      throw new NotFoundException('Slot not found');
+    }
     const slotToCancel: Booking = await this.findReservedSlotById(
       id,
       currentUser,
     );
-    console.log(slotToCancel);
+    if (!slotToCancel) {
+      throw new NotFoundException('Slot not found');
+    }
+    const slot: Slot = await this.slotRepository.findOneBy({
+      bookingBy: slotToCancel,
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found');
+    }
+    slot.status = SlotStatus.AVAILABLE;
+    slot.bookingBy = null;
+    await this.slotRepository.save(slot);
+    await this.bookingRepository.remove(slotToCancel);
+    return {
+      message: 'Your slot removed successfully',
+    };
   }
 }
