@@ -123,4 +123,11 @@ export class BookingService {
       message: 'Your slot removed successfully',
     };
   }
+
+  async findReservedSlotsByUser(currentUser: ActiveUserData) {
+    const user: User = await this.userRepository.findOneBy({
+      email: currentUser.email,
+    });
+    return user;
+  }
 }

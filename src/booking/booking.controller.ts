@@ -51,4 +51,10 @@ export class BookingController {
   ) {
     return await this.bookingService.cancelReservation(id, currentUser);
   }
+
+  @ApiBearerAuth()
+  @Get('/slots/')
+  async findReservedSlotsByCustomer(@ActiveUser() currentUser: ActiveUserData) {
+    return await this.bookingService.findReservedSlotsByUser(currentUser);
+  }
 }
