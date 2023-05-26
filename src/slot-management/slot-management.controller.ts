@@ -88,6 +88,6 @@ export class SlotManagementController {
     @Body() updateSlot: UpdateDailySlotsDto,
     @ActiveUser() user: ActiveUserData,
   ) {
-    return this.slotManagementService.updateDailySlots(updateSlot, user);
+    return this.slotManagementService.updateDailySlots(updateSlot, user, date);
   }
 }

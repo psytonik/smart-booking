@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import {
   addDays,
@@ -145,14 +144,10 @@ export class SlotManagementService {
     if (isNaN(targetDate.getTime())) {
       throw new BadRequestException('Invalid date format');
     }
-    const currentDay: Slot[] = await this.slotRepository.findBy({
+    return await this.slotRepository.findBy({
       business: user.business,
       startTime: Between(startOfDay(targetDate), endOfDay(targetDate)),
     });
-    if (currentDay.length == 0) {
-      throw new NotFoundException('For this date no open slots');
-    }
-    return currentDay;
   }
 
   async closeOpenedSlotsByDate(
@@ -232,9 +227,29 @@ export class SlotManagementService {
     });
 
     const unavailableSlotsExist = existingSlots.some(
-      (slot) => slot.status === SlotStatus.UNAVAILABLE,
+      (slot): boolean => slot.status == SlotStatus.UNAVAILABLE,
     );
+    if (unavailableSlotsExist) {
+      throw new ForbiddenException(
+        'Unavailable slots for this day already exist',
+      );
+    }
+  }
+  private async checkSlotsExistenceByDateForUpdate(
+    date: Date,
+    business: Business,
+  ): Promise<void> {
+    const existingSlots = await this.slotRepository.find({
+      where: {
+        business,
+        startTime: Between(startOfDay(date), endOfDay(date)),
+      },
+    });
 
+    const unavailableSlotsExist = existingSlots.some(
+      (slot): boolean =>
+        slot.bookingBy !== null && slot.status == SlotStatus.UNAVAILABLE,
+    );
     if (unavailableSlotsExist) {
       throw new ForbiddenException(
         'Unavailable slots for this day already exist',
@@ -281,11 +296,12 @@ export class SlotManagementService {
   async updateDailySlots(
     updateDailySlots: UpdateDailySlotsDto,
     currentUser: ActiveUserData,
+    day,
   ) {
     const user = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
-    const date = startOfToday();
-    await this.checkSlotsExistenceByDate(date, business);
+    const date = new Date(day);
+    await this.checkSlotsExistenceByDateForUpdate(date, business);
 
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format');
@@ -322,12 +338,7 @@ export class SlotManagementService {
         updatedSlots[i] = existingSlot;
       }
     });
-
-    await this.slotRepository.delete({
-      business: user.business,
-      startTime: Between(startOfDay(date), endOfDay(date)),
-    });
-
+    await this.slotRepository.remove(existingSlots);
     return await this.slotRepository.save(updatedSlots);
   }
 }
