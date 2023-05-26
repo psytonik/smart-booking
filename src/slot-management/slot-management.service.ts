@@ -5,15 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  addDays,
   addMinutes,
-  addWeeks,
   endOfDay,
-  setDay,
   setHours,
   setMinutes,
   startOfDay,
   startOfToday,
-  startOfWeek,
 } from 'date-fns';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
@@ -80,18 +78,24 @@ export class SlotManagementService {
         const startDate = weeklySlotsDto.startDate
           ? new Date(weeklySlotsDto.startDate)
           : new Date();
-        const date = setDay(
-          startOfWeek(addWeeks(startDate, i)),
-          [
-            'Sunday',
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-          ].indexOf(workDay),
-        );
+        const startDateDay = startDate.getDay();
+        const dayIndex = [
+          'Sunday',
+          'Monday',
+          'Tuesday',
+          'Wednesday',
+          'Thursday',
+          'Friday',
+          'Saturday',
+        ].indexOf(workDay);
+        let date;
+        if (startDateDay <= dayIndex) {
+          // The workday is in this week
+          date = addDays(startDate, dayIndex - startDateDay);
+        } else {
+          // The workday is in next week
+          date = addDays(startDate, 7 - startDateDay + dayIndex);
+        }
 
         await this.checkSlotsExistenceByDate(date, business);
 
