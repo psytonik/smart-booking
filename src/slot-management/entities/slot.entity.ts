@@ -27,7 +27,7 @@ export class Slot {
   @ManyToOne(() => Business, (business) => business.slots)
   business: Business;
 
-  @OneToOne(() => Booking, (booking) => booking.slot, { eager: true })
+  @OneToOne(() => Booking, (booking) => booking.id, { eager: true })
   @JoinColumn()
   bookingBy: Booking;
 }

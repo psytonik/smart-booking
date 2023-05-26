@@ -13,6 +13,7 @@ import { SlotStatus } from '../slot-management/enums/slotStatus.enum';
 import { Booking } from './entities/booking.entity';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { User } from '../users/entities/user.entity';
+import { plainToClass } from 'class-transformer';
 
 @Injectable()
 export class BookingService {
@@ -54,19 +55,21 @@ export class BookingService {
     if (!slotToReserve) {
       throw new NotFoundException('No available slot for the desired time');
     }
-    slotToReserve.status = SlotStatus.UNAVAILABLE;
-    const bookDate: Booking = new Booking();
-    bookDate.bookSlot = desiredDate;
-    bookDate.user = client;
-    bookDate.business = business;
-    bookDate.slot = slotToReserve;
 
-    await this.bookingRepository.save(bookDate);
-    slotToReserve.bookingBy = await this.bookingRepository.findOneBy({
-      user: client,
-    });
+    const booking = new Booking();
+    booking.bookSlot = desiredDate;
+    booking.user = client;
+    booking.business = business;
+    booking.slot = slotToReserve;
+
+    await this.bookingRepository.save(booking);
+
+    slotToReserve.bookingBy = booking;
+    slotToReserve.status = SlotStatus.UNAVAILABLE;
     await this.slotRepository.save(slotToReserve);
-    return bookDate;
+    return plainToClass(Booking, booking, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async availableSlots(businessId: string): Promise<Slot[]> {
@@ -86,14 +89,22 @@ export class BookingService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    const reservedSlotByClient: Booking =
-      await this.bookingRepository.findOneBy({ id: id });
+
+    const reservedSlotByClient: Booking = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.user', 'user')
+      .leftJoinAndSelect('booking.business', 'business')
+      .where('booking.id = :bookingId', { bookingId: id })
+      .getOne();
+
     if (!reservedSlotByClient) {
       throw new NotFoundException('Slot not found');
     }
-    if (reservedSlotByClient?.user.id !== user.id) {
-      throw new ForbiddenException(`this is not you reservation`);
+
+    if (reservedSlotByClient.user.id !== user.id) {
+      throw new ForbiddenException(`this is not your reservation`);
     }
+
     return reservedSlotByClient;
   }
 
@@ -128,6 +139,15 @@ export class BookingService {
     const user: User = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
-    return user;
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return await this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.user', 'user')
+      .leftJoinAndSelect('booking.business', 'business')
+      .leftJoinAndSelect('booking.slot', 'slot')
+      .where('user.id = :userId', { userId: user.id })
+      .getMany();
   }
 }

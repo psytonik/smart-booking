@@ -117,10 +117,19 @@ export class SlotManagementService {
   async findAllSlots(currentUser: ActiveUserData): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
-    if (user.role == 'admin') return this.slotRepository.find();
-    return await this.slotRepository.findBy({
-      business,
-    });
+    if (user.role == 'admin') {
+      return await this.slotRepository
+        .createQueryBuilder('slot')
+        .leftJoinAndSelect('slot.bookingBy', 'booking')
+        .leftJoinAndSelect('booking.user', 'user')
+        .getMany();
+    }
+    return await this.slotRepository
+      .createQueryBuilder('slot')
+      .leftJoinAndSelect('slot.bookingBy', 'booking')
+      .leftJoinAndSelect('booking.user', 'user')
+      .where('slot.business = :business', { business: business.id })
+      .getMany();
   }
 
   async getOpenedSlotByDay(

@@ -32,6 +32,6 @@ export class User {
   @ManyToOne(() => Business, (business) => business.employees)
   workplace: Business;
 
-  @OneToMany(() => Booking, (bookings) => bookings.id)
+  @OneToMany(() => Booking, (bookings) => bookings.user)
   booking: Booking[];
 }
