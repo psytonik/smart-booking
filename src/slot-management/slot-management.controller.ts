@@ -25,6 +25,7 @@ import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
 import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
+import { ReportDatesDto } from './dto/reportDates.dto';
 
 @ApiBearerAuth()
 @Roles(Role.Business, Role.Employee, Role.Admin)
@@ -89,5 +90,17 @@ export class SlotManagementController {
     @ActiveUser() user: ActiveUserData,
   ) {
     return this.slotManagementService.updateDailySlots(updateSlot, user, date);
+  }
+
+  @ApiOperation({
+    summary: 'startDate, endDate must be formatted by YYYY-MM-DD',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('report')
+  async getReportByDate(
+    @Body() reportDates: ReportDatesDto,
+    @ActiveUser() user: ActiveUserData,
+  ) {
+    return await this.slotManagementService.getReportByDate(reportDates, user);
   }
 }

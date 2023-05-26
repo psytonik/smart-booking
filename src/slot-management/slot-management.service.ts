@@ -341,4 +341,28 @@ export class SlotManagementService {
       ...unavailableSlots,
     ]);
   }
+
+  async getReportByDate(
+    reportDate,
+    currentUser,
+  ): Promise<{ slots: Slot[]; totalSlots: number }> {
+    const user = await this.findUser(currentUser);
+    const business = await this.getBusinessByOwner(user);
+
+    const { startDate, endDate } = reportDate;
+
+    const slots = await this.slotRepository
+      .createQueryBuilder('slot')
+      .where('slot.business = :business', { business: business.id })
+      .andWhere('slot.bookingBy IS NOT NULL')
+      .andWhere('slot.startTime BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      })
+      .getMany();
+    return {
+      totalSlots: slots.length,
+      slots,
+    };
+  }
 }
