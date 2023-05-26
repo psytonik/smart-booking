@@ -42,9 +42,9 @@ export class SlotManagementController {
     return this.slotManagementService.setDailySlots(dailySlotsDto, user);
   }
 
+  @ApiBody({ type: WeeklySlotsDto })
   @Post('weekly')
   async setWeeklySlots(
-    @Body() dailySlotsDto: DailySlotsDto,
     @Body() weeklySlotsDto: WeeklySlotsDto,
     @ActiveUser() currentUser: ActiveUserData,
   ): Promise<Slot[]> {
