@@ -191,28 +191,42 @@ export class SlotManagementService {
   }
 
   private createSlots(
-    totalSlots,
-    start,
-    timePerClient,
-    lunchStartSlot,
-    lunchEndSlot,
-    business,
+    totalSlots: number,
+    start: Date,
+    timePerClient: number,
+    lunchStartSlot: number,
+    lunchEndSlot: number,
+    business: Business,
+    unavailableSlots: Slot[] = [],
   ): Slot[] {
-    return Array.from({ length: totalSlots }).map((_, i) => {
-      const slotStart = addMinutes(start, i * timePerClient);
-      const slotEnd = addMinutes(slotStart, timePerClient);
-      const isDuringLunch = i >= lunchStartSlot && i < lunchEndSlot;
+    const slots: Slot[] = [];
+    for (let i = 0; i < totalSlots; i++) {
+      const slotStartTime = addMinutes(new Date(start), i * timePerClient);
+      const slotEndTime = addMinutes(slotStartTime, timePerClient);
+
+      const isReserved = unavailableSlots.some(
+        (slot) =>
+          (slot.startTime.getTime() < slotEndTime.getTime() &&
+            slotEndTime.getTime() <= slot.endTime.getTime()) ||
+          (slotStartTime.getTime() >= slot.startTime.getTime() &&
+            slotStartTime.getTime() < slot.endTime.getTime()),
+      );
+
+      if (isReserved) {
+        continue;
+      }
 
       const slot = new Slot();
+      slot.startTime = slotStartTime;
+      slot.endTime = slotEndTime;
       slot.business = business;
-      slot.endTime = slotEnd;
-      slot.startTime = slotStart;
-      slot.status = isDuringLunch
-        ? SlotStatus.UNAVAILABLE
-        : SlotStatus.AVAILABLE;
-
-      return slot;
-    });
+      slot.status = SlotStatus.AVAILABLE;
+      if (i >= lunchStartSlot && i < lunchEndSlot) {
+        slot.status = SlotStatus.UNAVAILABLE;
+      }
+      slots.push(slot);
+    }
+    return slots;
   }
 
   private async checkSlotsExistenceByDate(
@@ -228,27 +242,6 @@ export class SlotManagementService {
 
     const unavailableSlotsExist = existingSlots.some(
       (slot): boolean => slot.status == SlotStatus.UNAVAILABLE,
-    );
-    if (unavailableSlotsExist) {
-      throw new ForbiddenException(
-        'Unavailable slots for this day already exist',
-      );
-    }
-  }
-  private async checkSlotsExistenceByDateForUpdate(
-    date: Date,
-    business: Business,
-  ): Promise<void> {
-    const existingSlots = await this.slotRepository.find({
-      where: {
-        business,
-        startTime: Between(startOfDay(date), endOfDay(date)),
-      },
-    });
-
-    const unavailableSlotsExist = existingSlots.some(
-      (slot): boolean =>
-        slot.bookingBy !== null && slot.status == SlotStatus.UNAVAILABLE,
     );
     if (unavailableSlotsExist) {
       throw new ForbiddenException(
@@ -301,12 +294,22 @@ export class SlotManagementService {
     const user = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
     const date = new Date(day);
-    await this.checkSlotsExistenceByDateForUpdate(date, business);
-
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format');
     }
-
+    const existingSlots: Slot[] = await this.slotRepository.find({
+      where: {
+        business: user.business,
+        startTime: Between(startOfDay(date), endOfDay(date)),
+      },
+    });
+    const unavailableSlots = existingSlots.filter(
+      (slot) => slot.status === SlotStatus.UNAVAILABLE,
+    );
+    const availableSlots = existingSlots.filter(
+      (slot) => slot.status !== SlotStatus.UNAVAILABLE,
+    );
+    await this.slotRepository.remove(availableSlots);
     const start: Date = this.setTime(
       date,
       this.parseTime(updateDailySlots.openingHours),
@@ -321,24 +324,21 @@ export class SlotManagementService {
       lunchStartSlot,
       lunchEndSlot,
       business,
+      unavailableSlots,
     );
-    const existingSlots: Slot[] = await this.slotRepository.find({
-      where: {
-        business: user.business,
-        startTime: Between(startOfDay(date), endOfDay(date)),
-      },
-    });
     updatedSlots.forEach((slot, i) => {
-      const existingSlot = existingSlots.find(
+      const existingSlot = unavailableSlots.find(
         (s) =>
           s.startTime.getTime() === slot.startTime.getTime() &&
           s.endTime.getTime() === slot.endTime.getTime(),
       );
-      if (existingSlot && existingSlot.status === SlotStatus.UNAVAILABLE) {
+      if (existingSlot) {
         updatedSlots[i] = existingSlot;
       }
     });
-    await this.slotRepository.remove(existingSlots);
-    return await this.slotRepository.save(updatedSlots);
+    return await this.slotRepository.save([
+      ...updatedSlots,
+      ...unavailableSlots,
+    ]);
   }
 }

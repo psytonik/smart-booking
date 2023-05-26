@@ -7,7 +7,7 @@ export class WeeklySlotsDto {
   @ApiProperty({
     type: Array,
     description:
-      "must be array of strings 'Sunday, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday' ",
+      'must be array of strings "Sunday", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday" ',
   })
   @IsArray()
   setWorkDays: string[];
@@ -15,7 +15,7 @@ export class WeeklySlotsDto {
   @ApiProperty({
     type: Array,
     description:
-      "must be array of strings 'Sunday, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday' ",
+      'must be array of strings "Sunday", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday" ',
   })
   @IsArray()
   setHolidays: string[];
