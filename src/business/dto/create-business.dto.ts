@@ -4,21 +4,21 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateBusinessDto {
   @ApiProperty()
   @IsString()
-  name: string;
+  readonly name: string;
 
   @ApiProperty()
   @IsString()
-  description: string;
+  readonly description: string;
 
   @ApiProperty()
   @IsString()
-  address: string;
+  readonly address: string;
 
   @ApiProperty()
   @IsString()
-  email: string;
+  readonly email: string;
 
   @ApiProperty()
   @IsString()
-  phoneNumber: string;
+  readonly phoneNumber: string;
 }

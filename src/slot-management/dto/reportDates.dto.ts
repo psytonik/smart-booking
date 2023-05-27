@@ -7,10 +7,10 @@ export class ReportDatesDto {
   @ApiProperty({ type: String, description: 'Date in ISO format (yyyy-mm-dd)' })
   @IsDate()
   @Transform(({ value }) => parseISO(value), { toClassOnly: true })
-  startDate: Date;
+  readonly startDate: Date;
 
   @ApiProperty({ type: String, description: 'Date in ISO format (yyyy-mm-dd)' })
   @IsDate()
   @Transform(({ value }) => parseISO(value), { toClassOnly: true })
-  endDate: Date;
+  readonly endDate: Date;
 }
