@@ -27,7 +27,7 @@ export class BusinessService {
       employees: [],
       slots: [],
       owner: foundUser,
-      slug: slugify(createBusinessDto.name, '_'),
+      slug: slugify(createBusinessDto.name, '_').toLowerCase(),
     });
     await this.businessRepo.save(newBusiness);
     foundUser.business = newBusiness;
