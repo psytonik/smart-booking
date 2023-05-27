@@ -298,6 +298,9 @@ export class SlotManagementService {
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format');
     }
+    if (date < new Date()) {
+      throw new ConflictException('Dude you can update past dates !');
+    }
     const existingSlots: Slot[] = await this.slotRepository.find({
       where: {
         business: user.business,
