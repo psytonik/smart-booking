@@ -17,6 +17,9 @@ export class Business {
   name: string;
 
   @Column()
+  slug: string;
+
+  @Column()
   description: string;
 
   @Column('text')

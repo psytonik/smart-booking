@@ -6,7 +6,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
-
+import slugify from 'slugify';
 @Injectable()
 export class BusinessService {
   constructor(
@@ -27,6 +27,7 @@ export class BusinessService {
       employees: [],
       slots: [],
       owner: foundUser,
+      slug: slugify(createBusinessDto.name, '_'),
     });
     await this.businessRepo.save(newBusiness);
     foundUser.business = newBusiness;
@@ -45,6 +46,7 @@ export class BusinessService {
         'business.address',
         'business.email',
         'business.phoneNumber',
+        'business.slug',
       ])
       .getMany();
   }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
@@ -168,7 +169,7 @@ export class SlotManagementService {
       email: currentUser.email,
     });
     if (user.role == Role.Client)
-      throw new ForbiddenException('you not authorized to open slots');
+      throw new ForbiddenException('you not authorized as business owner');
     return user;
   }
 
@@ -244,7 +245,7 @@ export class SlotManagementService {
       (slot): boolean => slot.status == SlotStatus.UNAVAILABLE,
     );
     if (unavailableSlotsExist) {
-      throw new ForbiddenException(
+      throw new ConflictException(
         'Unavailable slots for this day already exist',
       );
     }
@@ -258,7 +259,7 @@ export class SlotManagementService {
         where: { startTime: slot.startTime, endTime: slot.endTime },
       });
       if (existingSlot) {
-        throw new BadRequestException('Slot with this time already exists');
+        throw new ConflictException('Slot with this time already exists');
       }
       if (!existingSlot) {
         nonExistingSlots.push(slot);
