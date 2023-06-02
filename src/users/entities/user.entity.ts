@@ -34,4 +34,7 @@ export class User {
 
   @OneToMany(() => Booking, (bookings) => bookings.user)
   booking: Booking[];
+
+  @Column({ nullable: true })
+  information: string;
 }

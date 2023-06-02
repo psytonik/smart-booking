@@ -126,6 +126,7 @@ export class SlotManagementService {
         .createQueryBuilder('slot')
         .leftJoinAndSelect('slot.bookingBy', 'booking')
         .leftJoinAndSelect('booking.user', 'user')
+        .orderBy('slot.startTime', 'ASC')
         .getMany();
     }
     return await this.slotRepository
@@ -133,6 +134,7 @@ export class SlotManagementService {
       .leftJoinAndSelect('slot.bookingBy', 'booking')
       .leftJoinAndSelect('booking.user', 'user')
       .where('slot.business = :business', { business: business.id })
+      .orderBy('slot.startTime', 'ASC')
       .getMany();
   }
 
