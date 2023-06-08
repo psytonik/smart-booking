@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -27,8 +35,10 @@ export class BookingController {
   @Get('/business/:businessId')
   async availableSlots(
     @Param('businessId') businessId: string,
+    @Query('page') page: number,
   ): Promise<Slot[]> {
-    return await this.bookingService.availableSlots(businessId);
+    page = page >= 1 ? page : 1;
+    return await this.bookingService.availableSlots(businessId, page);
   }
 
   @ApiBearerAuth()

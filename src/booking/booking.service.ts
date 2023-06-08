@@ -72,12 +72,21 @@ export class BookingService {
     });
   }
 
-  async availableSlots(businessId: string): Promise<Slot[]> {
+  async availableSlots(businessId: string, page: number): Promise<Slot[]> {
     const business: Business = await this.businessRepository.findOneBy({
       id: businessId,
     });
+
+    const start = new Date();
+    start.setDate(start.getDate() + (page - 1) * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+
     return business.slots.filter(
-      (slot: Slot): boolean => slot.status === SlotStatus.AVAILABLE,
+      (slot: Slot): boolean =>
+        slot.status === SlotStatus.AVAILABLE &&
+        slot.startTime >= start &&
+        slot.endTime < end,
     );
   }
 
