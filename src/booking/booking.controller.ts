@@ -35,9 +35,9 @@ export class BookingController {
   @Get('/business/:businessId')
   async availableSlots(
     @Param('businessId') businessId: string,
-    @Query('page') page: number,
+    @Query('page') page?: number,
   ): Promise<Slot[]> {
-    page = page >= 1 ? page : 1;
+    page = page && page >= 1 ? page : 1;
     return await this.bookingService.availableSlots(businessId, page);
   }
 
