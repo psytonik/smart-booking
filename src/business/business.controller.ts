@@ -1,9 +1,17 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Business } from './entities/business.entity';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
@@ -26,5 +34,13 @@ export class BusinessController {
   @Auth(AuthType.None)
   async findAll(): Promise<Business[]> {
     return this.businessService.findBusiness();
+  }
+
+  @ApiResponse({ status: 200, description: 'Business Info' })
+  @HttpCode(HttpStatus.OK)
+  @Get(':slug')
+  @Auth(AuthType.None)
+  async getBySlug(@Param('slug') slug: string): Promise<Business> {
+    return this.businessService.getBusinessBySlug(slug);
   }
 }

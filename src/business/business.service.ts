@@ -50,4 +50,20 @@ export class BusinessService {
       ])
       .getMany();
   }
+
+  async getBusinessBySlug(slug): Promise<Business> {
+    return await this.businessRepo
+      .createQueryBuilder('business')
+      .select([
+        'business.id',
+        'business.name',
+        'business.description',
+        'business.address',
+        'business.email',
+        'business.phoneNumber',
+        'business.slug',
+      ])
+      .where('business.slug = :slug', { slug })
+      .getOne();
+  }
 }
