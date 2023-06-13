@@ -7,13 +7,25 @@ import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
 import slugify from 'slugify';
+import {
+  Client,
+  GeocodeResponse,
+  GeocodeResult,
+} from '@googlemaps/google-maps-services-js';
+import { ConfigService } from '@nestjs/config';
+
 @Injectable()
 export class BusinessService {
+  private googleMapsClient: Client;
+
   constructor(
     @InjectRepository(Business)
     private readonly businessRepo: Repository<Business>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.googleMapsClient = new Client();
+  }
   async openBusiness(
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
@@ -52,7 +64,7 @@ export class BusinessService {
   }
 
   async getBusinessBySlug(slug): Promise<Business> {
-    return await this.businessRepo
+    const business = await this.businessRepo
       .createQueryBuilder('business')
       .select([
         'business.id',
@@ -65,5 +77,20 @@ export class BusinessService {
       ])
       .where('business.slug = :slug', { slug })
       .getOne();
+    try {
+      const key = await this.configService.get('GOOGLE_API_KEY');
+      const map: GeocodeResult = await this.googleMapsClient
+        .geocode({
+          params: {
+            address: business.address,
+            key,
+          },
+        })
+        .then((r: GeocodeResponse) => r.data.results[0]);
+      console.log(await map);
+    } catch (err) {
+      console.log(err.message, 'ERROR');
+    }
+    return business;
   }
 }
