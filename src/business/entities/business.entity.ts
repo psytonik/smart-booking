@@ -16,7 +16,7 @@ export class Business {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column()
   slug: string;
 
   @Column()
@@ -31,12 +31,17 @@ export class Business {
   @Column()
   phoneNumber: string;
 
-  @OneToOne(() => User, (user) => user.business, { eager: true })
+  @OneToOne(() => User, (user: User) => user.business, { eager: true })
   owner: User;
 
-  @OneToMany(() => User, (user) => user.workplace, { eager: true })
+  @OneToMany(() => User, (user: User) => user.workplace, { eager: true })
   employees: User[];
 
-  @OneToMany(() => Slot, (dailySlots) => dailySlots.business, { eager: true })
+  @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business, {
+    eager: true,
+  })
   slots: Slot[];
+
+  @Column({ default: false })
+  featured: boolean;
 }
