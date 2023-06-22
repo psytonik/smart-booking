@@ -17,6 +17,7 @@ import {
   GeocodeResult,
 } from '@googlemaps/google-maps-services-js';
 import { ConfigService } from '@nestjs/config';
+import { Location } from './entities/location.entity';
 
 @Injectable()
 export class BusinessService {
@@ -27,6 +28,8 @@ export class BusinessService {
     private readonly businessRepo: Repository<Business>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly configService: ConfigService,
+    @InjectRepository(Location)
+    private readonly locationRepo: Repository<Location>,
   ) {
     this.googleMapsClient = new Client();
   }
@@ -35,10 +38,9 @@ export class BusinessService {
     user: ActiveUserData,
   ): Promise<Business> {
     try {
-      const foundUser = await this.userRepo.findOneBy({ email: user.email });
-      if (!foundUser) {
-        throw new NotFoundException('user with this email not found');
-      }
+      const foundUser: User = await this.userRepo.findOneBy({
+        email: user.email,
+      });
       const key = await this.configService.get('GOOGLE_API_KEY');
       const map: GeocodeResult = await this.googleMapsClient
         .geocode({
@@ -48,7 +50,12 @@ export class BusinessService {
           },
         })
         .then((r: GeocodeResponse) => r.data.results[0]);
-      console.log(map, 'map');
+      const latitude: number = map.geometry.location.lat;
+      const longitude: number = map.geometry.location.lng;
+      const location: Location = new Location();
+      location.lat = latitude;
+      location.lng = longitude;
+      await this.locationRepo.save(location);
       const newBusiness: Business = this.businessRepo.create({
         ...createBusinessDto,
         employees: [],
@@ -56,9 +63,9 @@ export class BusinessService {
         owner: foundUser,
         address: map.formatted_address,
         slug: slugify(createBusinessDto.name, '-').toLowerCase(),
+        coords: location,
       });
-      newBusiness.coords.lat = map.geometry.location.lat;
-      newBusiness.coords.lng = map.geometry.location.lng;
+
       await this.businessRepo.save(newBusiness);
       foundUser.business = newBusiness;
       foundUser.role = Role.Business;
@@ -85,7 +92,7 @@ export class BusinessService {
   }
 
   async getBusinessBySlug(slug): Promise<Business> {
-    const business = await this.businessRepo
+    return await this.businessRepo
       .createQueryBuilder('business')
       .select([
         'business.id',
@@ -98,21 +105,15 @@ export class BusinessService {
       ])
       .where('business.slug = :slug', { slug })
       .getOne();
-    try {
-      const key = await this.configService.get('GOOGLE_API_KEY');
-      const map: GeocodeResult = await this.googleMapsClient
-        .geocode({
-          params: {
-            address: business.address,
-            key,
-          },
-        })
-        .then((r: GeocodeResponse) => r.data.results[0]);
-      console.log(map.geometry.location, 'map');
-    } catch (err) {
-      throw new BadRequestException(err.message);
-    }
+  }
 
-    return business;
+  async updateExistingBusiness(slug, updateData: Partial<Business>) {
+    const business = await this.getBusinessBySlug({ slug });
+    if (!business) {
+      throw new NotFoundException('Wrong slug or business not found');
+    }
+    const updatedBusiness = this.businessRepo.merge(business, updateData);
+
+    return this.businessRepo.save(updatedBusiness);
   }
 }

@@ -6,10 +6,10 @@ export class Location {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column('double precision')
   lat: number;
 
-  @Column()
+  @Column('double precision')
   lng: number;
 
   @OneToOne(() => Business, (business: Business) => business.coords, {
