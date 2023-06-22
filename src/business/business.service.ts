@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './entities/business.entity';
 import { Repository } from 'typeorm';
@@ -30,22 +34,39 @@ export class BusinessService {
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
   ): Promise<Business> {
-    const foundUser = await this.userRepo.findOneBy({ email: user.email });
-    if (!foundUser) {
-      throw new NotFoundException('user with this email not found');
+    try {
+      const foundUser = await this.userRepo.findOneBy({ email: user.email });
+      if (!foundUser) {
+        throw new NotFoundException('user with this email not found');
+      }
+      const key = await this.configService.get('GOOGLE_API_KEY');
+      const map: GeocodeResult = await this.googleMapsClient
+        .geocode({
+          params: {
+            address: createBusinessDto.address,
+            key,
+          },
+        })
+        .then((r: GeocodeResponse) => r.data.results[0]);
+      console.log(map, 'map');
+      const newBusiness: Business = this.businessRepo.create({
+        ...createBusinessDto,
+        employees: [],
+        slots: [],
+        owner: foundUser,
+        address: map.formatted_address,
+        slug: slugify(createBusinessDto.name, '-').toLowerCase(),
+      });
+      newBusiness.coords.lat = map.geometry.location.lat;
+      newBusiness.coords.lng = map.geometry.location.lng;
+      await this.businessRepo.save(newBusiness);
+      foundUser.business = newBusiness;
+      foundUser.role = Role.Business;
+      await this.userRepo.save(foundUser);
+      return newBusiness;
+    } catch (err) {
+      throw new BadRequestException(err.message);
     }
-    const newBusiness: Business = this.businessRepo.create({
-      ...createBusinessDto,
-      employees: [],
-      slots: [],
-      owner: foundUser,
-      slug: slugify(createBusinessDto.name, '-').toLowerCase(),
-    });
-    await this.businessRepo.save(newBusiness);
-    foundUser.business = newBusiness;
-    foundUser.role = Role.Business;
-    await this.userRepo.save(foundUser);
-    return newBusiness;
   }
 
   async findBusiness(): Promise<Business[]> {
@@ -87,10 +108,11 @@ export class BusinessService {
           },
         })
         .then((r: GeocodeResponse) => r.data.results[0]);
-      console.log(await map);
+      console.log(map.geometry.location, 'map');
     } catch (err) {
-      console.log(err.message, 'ERROR');
+      throw new BadRequestException(err.message);
     }
+
     return business;
   }
 }

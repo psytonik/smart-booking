@@ -1,12 +1,14 @@
 import {
   Column,
   Entity,
+  JoinColumn,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
+import { Location } from './location.entity';
 
 @Entity()
 export class Business {
@@ -24,6 +26,10 @@ export class Business {
 
   @Column('text')
   address: string;
+
+  @OneToOne(() => Location, (location: Location) => location.businessId)
+  @JoinColumn()
+  coords: Location;
 
   @Column()
   email: string;
