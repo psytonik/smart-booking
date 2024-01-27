@@ -28,28 +28,28 @@
 
 ## Installation
 1 step you need to create .env at root of the project
-````
-#APP
+````bash
+# APP
 APP_PORT=4000
 
-#POSTGRES
+# POSTGRES
 POSTGRES_DB=smartbooking
-POSTGRES_HOST=localhost
+POSTGRES_HOST=
 POSTGRES_PORT=5432
 POSTGRES_USER=
 POSTGRES_PASSWORD=
 
-#JWT
+# JWT
 JWT_SECRET=
 JWT_AUDIENCE=
 JWT_TOKEN_ISSUER=
 JWT_ACCESS_TTL=360000
 JWT_REFRESH_TTL=86400
 
-#GOOGLE API KEY
+# GOOGLE API KEY
 GOOGLE_API_KEY=
 
-#GOOGLE OAUTH https://developers.google.com/oauthplayground/
+# GOOGLE OAUTH https://developers.google.com/oauthplayground/
 
 SMTP_USER=
 GOOGLE_OAUTH_CLIENT_ID=
@@ -58,6 +58,8 @@ GOOGLE_REFRESH_TOKEN=
 ````
 ```bash
 $ npm install
+
+$ createdb smartbooking
 
 $ docker-compose up -d 
 
