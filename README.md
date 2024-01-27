@@ -30,6 +30,12 @@
 
 ```bash
 $ npm install
+
+$ docker-compose up -d 
+
+$ npm run migration:generate
+
+$ npm run migration:run
 ```
 
 ## Running the app
