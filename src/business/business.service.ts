@@ -33,7 +33,7 @@ export class BusinessService {
     private readonly locationRepo: Repository<Location>,
   ) {
     this.googleMapsClient = new Client();
-    this.key = this.configService.get('GOOGLE_API_KEY');
+    this.key = this.configService.getOrThrow('GOOGLE_API_KEY');
   }
   async openBusiness(
     createBusinessDto: CreateBusinessDto,
@@ -81,7 +81,7 @@ export class BusinessService {
       .getMany();
   }
 
-  async getBusinessBySlug(slug): Promise<Business> {
+  async getBusinessBySlug(slug: string): Promise<Business> {
     return await this.businessRepo
       .createQueryBuilder('business')
       .select([
@@ -98,7 +98,7 @@ export class BusinessService {
   }
 
   async updateExistingBusiness(
-    slug,
+    slug: string,
     updateData: UpdateBusinessDto,
   ): Promise<Business> {
     const business: Business = await this.getBusinessBySlug(slug);
