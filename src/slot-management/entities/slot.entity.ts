@@ -16,10 +16,10 @@ export class Slot {
   id: number;
 
   @Column({ type: 'timestamp' })
-  startTime: Date;
+  start_time: Date;
 
   @Column({ type: 'timestamp' })
-  endTime: Date;
+  end_time: Date;
 
   @Column({ type: 'enum', enum: SlotStatus, default: SlotStatus.AVAILABLE })
   status: SlotStatus;
@@ -29,5 +29,5 @@ export class Slot {
 
   @OneToOne(() => Booking, (booking) => booking.id, { eager: true })
   @JoinColumn()
-  bookingBy: Booking;
+  booking_by: Booking;
 }

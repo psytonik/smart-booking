@@ -13,7 +13,6 @@ export const dataSourceOptions = {
   migrations: [join(__dirname, '..') + '/**/migrations/*.js'],
   synchronize: false,
   logging: true,
-  // autoLoadEntities: true,
 } as DataSourceOptions;
 
 export default new DataSource(dataSourceOptions);

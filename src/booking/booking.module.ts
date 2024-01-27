@@ -7,13 +7,15 @@ import { Slot } from '../slot-management/entities/slot.entity';
 import { SlotManagementModule } from '../slot-management/slot-management.module';
 import { BusinessModule } from '../business/business.module';
 import { Business } from '../business/entities/business.entity';
-import { User } from '../users/entities/user.entity';
+import { Users } from '../users/entities/user.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     SlotManagementModule,
     BusinessModule,
-    TypeOrmModule.forFeature([Booking, Slot, Business, User]),
+    TypeOrmModule.forFeature([Booking, Slot, Business, Users]),
+    NotificationsModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],

@@ -17,7 +17,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Slot } from './entities/slot.entity';
 import { Business } from '../business/entities/business.entity';
-import { User } from '../users/entities/user.entity';
+import { Users } from '../users/entities/user.entity';
 import { SlotStatus } from './enums/slotStatus.enum';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
@@ -30,8 +30,8 @@ export class SlotManagementService {
   constructor(
     @InjectRepository(Slot)
     private readonly slotRepository: Repository<Slot>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(Users)
+    private readonly userRepository: Repository<Users>,
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
   ) {}
@@ -40,7 +40,7 @@ export class SlotManagementService {
     dailySlotsDto: DailySlotsDto,
     currentUser: ActiveUserData,
   ): Promise<Slot[]> {
-    const user: User = await this.findUser(currentUser);
+    const user: Users = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
 
     let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
@@ -124,17 +124,17 @@ export class SlotManagementService {
     if (user.role == 'admin') {
       return await this.slotRepository
         .createQueryBuilder('slot')
-        .leftJoinAndSelect('slot.bookingBy', 'booking')
+        .leftJoinAndSelect('slot.booking_by', 'booking')
         .leftJoinAndSelect('booking.user', 'user')
-        .orderBy('slot.startTime', 'ASC')
+        .orderBy('slot.start_time', 'ASC')
         .getMany();
     }
     return await this.slotRepository
       .createQueryBuilder('slot')
-      .leftJoinAndSelect('slot.bookingBy', 'booking')
+      .leftJoinAndSelect('slot.booking_by', 'booking')
       .leftJoinAndSelect('booking.user', 'user')
       .where('slot.business = :business', { business: business.id })
-      .orderBy('slot.startTime', 'ASC')
+      .orderBy('slot.start_time', 'ASC')
       .getMany();
   }
 
@@ -149,7 +149,7 @@ export class SlotManagementService {
     }
     return await this.slotRepository.findBy({
       business: user.business,
-      startTime: Between(startOfDay(targetDate), endOfDay(targetDate)),
+      start_time: Between(startOfDay(targetDate), endOfDay(targetDate)),
     });
   }
 
@@ -166,7 +166,7 @@ export class SlotManagementService {
     });
   }
 
-  private async findUser(currentUser: ActiveUserData): Promise<User> {
+  private async findUser(currentUser: ActiveUserData): Promise<Users> {
     const user = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
@@ -209,10 +209,10 @@ export class SlotManagementService {
 
       const isReserved = unavailableSlots.some(
         (slot) =>
-          (slot.startTime.getTime() < slotEndTime.getTime() &&
-            slotEndTime.getTime() <= slot.endTime.getTime()) ||
-          (slotStartTime.getTime() >= slot.startTime.getTime() &&
-            slotStartTime.getTime() < slot.endTime.getTime()),
+          (slot.start_time.getTime() < slotEndTime.getTime() &&
+            slotEndTime.getTime() <= slot.end_time.getTime()) ||
+          (slotStartTime.getTime() >= slot.start_time.getTime() &&
+            slotStartTime.getTime() < slot.end_time.getTime()),
       );
 
       if (isReserved) {
@@ -220,8 +220,8 @@ export class SlotManagementService {
       }
 
       const slot = new Slot();
-      slot.startTime = slotStartTime;
-      slot.endTime = slotEndTime;
+      slot.start_time = slotStartTime;
+      slot.end_time = slotEndTime;
       slot.business = business;
       slot.status = SlotStatus.AVAILABLE;
       if (i >= lunchStartSlot && i < lunchEndSlot) {
@@ -239,7 +239,7 @@ export class SlotManagementService {
     const existingSlots = await this.slotRepository.find({
       where: {
         business,
-        startTime: Between(startOfDay(date), endOfDay(date)),
+        start_time: Between(startOfDay(date), endOfDay(date)),
       },
     });
 
@@ -258,7 +258,7 @@ export class SlotManagementService {
 
     for (const slot of slots) {
       const existingSlot = await this.slotRepository.findOne({
-        where: { startTime: slot.startTime, endTime: slot.endTime },
+        where: { start_time: slot.start_time, end_time: slot.end_time },
       });
       if (existingSlot) {
         throw new ConflictException('Slot with this time already exists');
@@ -306,7 +306,7 @@ export class SlotManagementService {
     const existingSlots: Slot[] = await this.slotRepository.find({
       where: {
         business: user.business,
-        startTime: Between(startOfDay(date), endOfDay(date)),
+        start_time: Between(startOfDay(date), endOfDay(date)),
       },
     });
     const unavailableSlots = existingSlots.filter(
@@ -335,8 +335,8 @@ export class SlotManagementService {
     updatedSlots.forEach((slot, i) => {
       const existingSlot = unavailableSlots.find(
         (s) =>
-          s.startTime.getTime() === slot.startTime.getTime() &&
-          s.endTime.getTime() === slot.endTime.getTime(),
+          s.start_time.getTime() === slot.start_time.getTime() &&
+          s.end_time.getTime() === slot.end_time.getTime(),
       );
       if (existingSlot) {
         updatedSlots[i] = existingSlot;

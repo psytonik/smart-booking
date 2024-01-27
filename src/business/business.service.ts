@@ -8,7 +8,7 @@ import { Business } from './entities/business.entity';
 import { Repository } from 'typeorm';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { User } from '../users/entities/user.entity';
+import { Users } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
 import slugify from 'slugify';
 import {
@@ -18,52 +18,42 @@ import {
 } from '@googlemaps/google-maps-services-js';
 import { ConfigService } from '@nestjs/config';
 import { Location } from './entities/location.entity';
+import { UpdateBusinessDto } from './dto/update-business.dto';
 
 @Injectable()
 export class BusinessService {
   private googleMapsClient: Client;
-
+  private key: string;
   constructor(
     @InjectRepository(Business)
     private readonly businessRepo: Repository<Business>,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Users) private readonly userRepo: Repository<Users>,
     private readonly configService: ConfigService,
     @InjectRepository(Location)
     private readonly locationRepo: Repository<Location>,
   ) {
     this.googleMapsClient = new Client();
+    this.key = this.configService.get('GOOGLE_API_KEY');
   }
   async openBusiness(
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
   ): Promise<Business> {
     try {
-      const foundUser: User = await this.userRepo.findOneBy({
+      const foundUser: Users = await this.userRepo.findOneBy({
         email: user.email,
       });
-      const key = await this.configService.get('GOOGLE_API_KEY');
-      const map: GeocodeResult = await this.googleMapsClient
-        .geocode({
-          params: {
-            address: createBusinessDto.address,
-            key,
-          },
-        })
-        .then((r: GeocodeResponse) => r.data.results[0]);
-      const latitude: number = map.geometry.location.lat;
-      const longitude: number = map.geometry.location.lng;
-      const location: Location = new Location();
-      location.lat = latitude;
-      location.lng = longitude;
-      await this.locationRepo.save(location);
+      const { formattedAddress, coords } = await this.getLocationFromAddress(
+        createBusinessDto.address,
+      );
       const newBusiness: Business = this.businessRepo.create({
         ...createBusinessDto,
         employees: [],
         slots: [],
         owner: foundUser,
-        address: map.formatted_address,
+        address: formattedAddress,
         slug: slugify(createBusinessDto.name, '-').toLowerCase(),
-        coords: location,
+        coords: coords,
       });
 
       await this.businessRepo.save(newBusiness);
@@ -85,7 +75,7 @@ export class BusinessService {
         'business.description',
         'business.address',
         'business.email',
-        'business.phoneNumber',
+        'business.phone_number',
         'business.slug',
       ])
       .getMany();
@@ -100,20 +90,78 @@ export class BusinessService {
         'business.description',
         'business.address',
         'business.email',
-        'business.phoneNumber',
+        'business.phone_number',
         'business.slug',
       ])
       .where('business.slug = :slug', { slug })
       .getOne();
   }
 
-  async updateExistingBusiness(slug, updateData: Partial<Business>) {
-    const business = await this.getBusinessBySlug({ slug });
+  async updateExistingBusiness(
+    slug,
+    updateData: UpdateBusinessDto,
+  ): Promise<Business> {
+    const business: Business = await this.getBusinessBySlug(slug);
     if (!business) {
       throw new NotFoundException('Wrong slug or business not found');
     }
-    const updatedBusiness = this.businessRepo.merge(business, updateData);
 
+    const updatedFields: Partial<Business> = {};
+
+    if (updateData.name) {
+      updatedFields.name = updateData.name;
+      updatedFields.slug = slugify(updateData.name, '-').toLowerCase();
+    }
+
+    if (updateData.description) {
+      updatedFields.description = updateData.description;
+    }
+
+    if (updateData.email) {
+      updatedFields.email = updateData.email;
+    }
+
+    if (updateData.phone_number) {
+      updatedFields.phone_number = updateData.phone_number;
+    }
+
+    if (updateData.address && updateData.address !== business.address) {
+      try {
+        const { coords, formattedAddress } = await this.getLocationFromAddress(
+          updateData.address,
+        );
+        updatedFields.address = formattedAddress;
+        updatedFields.coords = coords;
+      } catch (e) {
+        console.error('Error updating address', e);
+      }
+    }
+
+    const updatedBusiness = this.businessRepo.merge(business, updatedFields);
     return this.businessRepo.save(updatedBusiness);
+  }
+
+  private async getLocationFromAddress(
+    address: string,
+  ): Promise<{ coords: Location; formattedAddress: string }> {
+    const map: GeocodeResult = await this.googleMapsClient
+      .geocode({
+        params: {
+          address: address,
+          key: this.key,
+        },
+      })
+      .then((r: GeocodeResponse) => r.data.results[0]);
+
+    const location: Location = new Location();
+    location.lat = map.geometry.location.lat;
+    location.lng = map.geometry.location.lng;
+
+    await this.locationRepo.save(location);
+
+    return {
+      coords: location,
+      formattedAddress: map.formatted_address,
+    };
   }
 }

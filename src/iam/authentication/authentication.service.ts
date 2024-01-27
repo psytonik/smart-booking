@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { SignUpDto } from './dto/sign-up.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { HashingService } from '../hashing/hashing.service';
 import { SignInDto } from './dto/sign-in.dto';
@@ -24,7 +24,7 @@ import { randomUUID } from 'crypto';
 @Injectable()
 export class AuthenticationService {
   constructor(
-    @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @InjectRepository(Users) private readonly userRepository: Repository<Users>,
     private readonly hashingService: HashingService,
     private readonly jwtService: JwtService,
     @Inject(jwtConfig.KEY)
@@ -33,7 +33,7 @@ export class AuthenticationService {
   ) {}
   async signUp(signUpDto: SignUpDto) {
     try {
-      const newUser: User = new User();
+      const newUser: Users = new Users();
       newUser.email = signUpDto.email;
       newUser.password = await this.hashingService.hash(signUpDto.password);
       return await this.userRepository.save(newUser);
@@ -49,7 +49,7 @@ export class AuthenticationService {
   }
 
   async signIn(signInDto: SignInDto) {
-    const user: User = await this.userRepository.findOneBy({
+    const user: Users = await this.userRepository.findOneBy({
       email: signInDto.email,
     });
     if (!user) {
@@ -112,7 +112,7 @@ export class AuthenticationService {
         audience: this.jwtConfiguration.audience,
         issuer: this.jwtConfiguration.issuer,
       });
-      const user: User = await this.userRepository.findOneBy({ id: sub });
+      const user: Users = await this.userRepository.findOneBy({ id: sub });
       const isValid = await this.refreshTokenIdsStorage.validate(
         user.id,
         refreshTokenId,

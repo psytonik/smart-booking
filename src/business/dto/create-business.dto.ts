@@ -20,5 +20,5 @@ export class CreateBusinessDto {
 
   @ApiProperty()
   @IsString()
-  readonly phoneNumber: string;
+  readonly phone_number: string;
 }

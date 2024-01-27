@@ -12,8 +12,9 @@ import { Slot } from '../slot-management/entities/slot.entity';
 import { SlotStatus } from '../slot-management/enums/slotStatus.enum';
 import { Booking } from './entities/booking.entity';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { User } from '../users/entities/user.entity';
+import { Users } from '../users/entities/user.entity';
 import { plainToClass } from 'class-transformer';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BookingService {
@@ -24,8 +25,9 @@ export class BookingService {
     private readonly slotRepository: Repository<Slot>,
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(Users)
+    private readonly userRepository: Repository<Users>,
+    private readonly notificationsService: NotificationsService,
   ) {}
   async reserveSlot(
     reserveSlotDto: ReserveSlotDto,
@@ -35,7 +37,7 @@ export class BookingService {
     const business: Business = await this.businessRepository.findOneBy({
       id: businessId,
     });
-    const client: User = await this.userRepository.findOneBy({
+    const client: Users = await this.userRepository.findOneBy({
       email: user.email,
     });
     const slots: Slot[] = await this.slotRepository.findBy({
@@ -48,7 +50,7 @@ export class BookingService {
       throw new BadRequestException('Cannot book a slot in the past');
     }
     const slotToReserve = slots.filter((slot) => {
-      const slotStartTime = new Date(slot.startTime);
+      const slotStartTime = new Date(slot.start_time);
       slotStartTime.setSeconds(0, 0);
       return slotStartTime.getTime() === desiredDate.getTime();
     })[0];
@@ -57,16 +59,26 @@ export class BookingService {
     }
 
     const booking = new Booking();
-    booking.bookSlot = desiredDate;
+    booking.book_slot = desiredDate;
     booking.user = client;
     booking.business = business;
     booking.slot = slotToReserve;
 
     await this.bookingRepository.save(booking);
 
-    slotToReserve.bookingBy = booking;
+    slotToReserve.booking_by = booking;
     slotToReserve.status = SlotStatus.UNAVAILABLE;
     await this.slotRepository.save(slotToReserve);
+    await this.notificationsService.send(
+      booking.user.email,
+      `Service reserved in ${slotToReserve.start_time} at ${business.address}`,
+      `Reservation service from ${business.name}`,
+    );
+    await this.notificationsService.send(
+      business.email,
+      `${client.email} reserved slot at ${slotToReserve.start_time}`,
+      `New Reservation ${slotToReserve.start_time}`,
+    );
     return plainToClass(Booking, booking, {
       excludeExtraneousValues: true,
     });
@@ -81,14 +93,14 @@ export class BookingService {
     return this.slotRepository
       .createQueryBuilder('slot')
       .where('slot.businessId = :businessId', { businessId })
-      .andWhere('slot.startTime >= :start', { start })
-      .andWhere('slot.endTime < :end', { end })
+      .andWhere('slot.start_time >= :start', { start })
+      .andWhere('slot.end_time < :end', { end })
       .andWhere('slot.status = :status', { status: SlotStatus.AVAILABLE })
       .getMany();
   }
 
   async findReservedSlotById(id, currentUser: ActiveUserData) {
-    const user: User = await this.userRepository.findOneBy({
+    const user: Users = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
 
@@ -100,7 +112,7 @@ export class BookingService {
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.business', 'business')
-      .where('booking.id = :bookingId', { bookingId: id })
+      .where('booking.id = :booking_id', { bookingId: id })
       .getOne();
 
     if (!reservedSlotByClient) {
@@ -126,14 +138,14 @@ export class BookingService {
       throw new NotFoundException('Slot not found');
     }
     const slot: Slot = await this.slotRepository.findOneBy({
-      bookingBy: slotToCancel,
+      booking_by: slotToCancel,
     });
 
     if (!slot) {
       throw new NotFoundException('Slot not found');
     }
     slot.status = SlotStatus.AVAILABLE;
-    slot.bookingBy = null;
+    slot.booking_by = null;
     await this.slotRepository.save(slot);
     await this.bookingRepository.remove(slotToCancel);
     return {
@@ -142,7 +154,7 @@ export class BookingService {
   }
 
   async findReservedSlotsByUser(currentUser: ActiveUserData) {
-    const user: User = await this.userRepository.findOneBy({
+    const user: Users = await this.userRepository.findOneBy({
       email: currentUser.email,
     });
     if (!user) {

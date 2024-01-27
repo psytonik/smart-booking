@@ -15,5 +15,5 @@ export class Location {
   @OneToOne(() => Business, (business: Business) => business.coords, {
     eager: true,
   })
-  businessId: string;
+  business_id: string;
 }

@@ -6,7 +6,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
 import { Location } from './location.entity';
 
@@ -27,7 +27,7 @@ export class Business {
   @Column('text')
   address: string;
 
-  @OneToOne(() => Location, (location: Location) => location.businessId)
+  @OneToOne(() => Location, (location: Location) => location.business_id)
   @JoinColumn()
   coords: Location;
 
@@ -35,13 +35,13 @@ export class Business {
   email: string;
 
   @Column()
-  phoneNumber: string;
+  phone_number: string;
 
-  @OneToOne(() => User, (user: User) => user.business, { eager: true })
-  owner: User;
+  @OneToOne(() => Users, (user: Users) => user.business, { eager: true })
+  owner: Users;
 
-  @OneToMany(() => User, (user: User) => user.workplace, { eager: true })
-  employees: User[];
+  @OneToMany(() => Users, (user: Users) => user.workplace, { eager: true })
+  employees: Users[];
 
   @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business, {
     eager: true,

@@ -12,7 +12,7 @@ import { Business } from '../../business/entities/business.entity';
 import { Booking } from '../../booking/entities/booking.entity';
 
 @Entity()
-export class User {
+export class Users {
   @PrimaryGeneratedColumn()
   id: number;
 

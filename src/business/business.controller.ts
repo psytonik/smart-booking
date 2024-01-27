@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { BusinessService } from './business.service';
@@ -15,6 +16,9 @@ import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Business } from './entities/business.entity';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
+import { Roles } from '../iam/authorization/decorators/roles.decorator';
+import { Role } from '../users/enums/role.enum';
+import { UpdateBusinessDto } from './dto/update-business.dto';
 
 @ApiTags('Business')
 @Controller('business')
@@ -42,5 +46,17 @@ export class BusinessController {
   @Auth(AuthType.None)
   async getBySlug(@Param('slug') slug: string): Promise<Business> {
     return this.businessService.getBusinessBySlug(slug);
+  }
+
+  @ApiResponse({ status: 200, description: 'Business Info' })
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @Roles(Role.Business, Role.Admin)
+  @Patch(':slug')
+  async updateBusiness(
+    @Param('slug') slug: string,
+    @Body() body: UpdateBusinessDto,
+  ): Promise<Business> {
+    return this.businessService.updateExistingBusiness(slug, body);
   }
 }
