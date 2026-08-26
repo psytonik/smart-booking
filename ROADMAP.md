@@ -67,6 +67,11 @@ Tracking issues from the 2026-08-26 backend + architecture code review. Ordered 
 - [ ] `logging: true` on the TypeORM datasource logs full SQL + params — should be env-gated (e.g. only in development).
   Files: `src/config/data-source.ts`
 
+- [ ] **Stale `owner.role` in `openBusiness` response**
+  Found while smoke-testing locally: `POST /business/open` correctly persists the owner's role as `business` in the database, but the HTTP response body still shows `owner.role: "client"`. `businessRepo.create({ owner: foundUser, ... })` doesn't keep a reference to the same `foundUser` object, so the later `foundUser.role = Role.Business` mutation isn't reflected in the `newBusiness.owner` that gets returned. Cosmetic only — no data-integrity impact — but confusing for API consumers.
+  Fix: re-fetch (or re-assign) `newBusiness.owner` from the updated `foundUser` before returning, or return an explicit response DTO built from the post-update state instead of the raw entity.
+  Files: `src/business/business.service.ts`
+
 ## Already solid (no action needed)
 
 - Global `AuthenticationGuard` + `RolesGuard` via `APP_GUARD`, with consistent `@Auth`/`@Roles` decorators across controllers.
