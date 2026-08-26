@@ -16,14 +16,15 @@ Tracking issues from the 2026-08-26 backend + architecture code review. Ordered 
 
 ## Phase 2 — High
 
-- [ ] **`findReservedSlotById` throws at runtime**
+- [x] **`findReservedSlotById` throws at runtime**
   Query builder parameter mismatch: `.where('booking.id = :booking_id', { bookingId: id })` — placeholder is `:booking_id`, bound key is `bookingId`. Breaks `GET /booking/slot/:id` and, transitively, `DELETE /booking/slot/:id`.
+  Fix: matched the placeholder name to the bound key (`:bookingId`). Verified locally: a malformed id now returns a proper `404`/validation error instead of a TypeORM "missing parameter" 500.
   Files: `src/booking/booking.service.ts`
 
-- [ ] **Mass-assignment via `ValidationPipe`**
+- [x] **Mass-assignment via `ValidationPipe`**
   Global pipe has no `whitelist`/`forbidNonWhitelisted`, so unknown body fields aren't stripped. `openBusiness` spreads the raw DTO into `.create()`, so `POST /business/open` with `{"featured": true, ...}` sets `featured` even though it's not on `CreateBusinessDto`.
-  Fix: `new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })`.
-  Files: `src/main.ts`, `src/business/business.service.ts`
+  Fix: `new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })`. Verified locally: the same `featured: true` payload is now rejected with `400 property featured should not exist`.
+  Files: `src/main.ts`
 
 ## Phase 3 — Medium
 

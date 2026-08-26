@@ -12,7 +12,13 @@ async function bootstrap() {
     const app: INestApplication = await NestFactory.create(AppModule);
     app.enableCors();
     app.use(compression());
-    app.useGlobalPipes(new ValidationPipe());
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     const config = new DocumentBuilder()
       .setTitle('Smart Booking Api')
       .setDescription('Api for book services')

@@ -128,7 +128,7 @@ export class BookingService {
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.business', 'business')
-      .where('booking.id = :booking_id', { bookingId: id })
+      .where('booking.id = :bookingId', { bookingId: id })
       .getOne();
 
     if (!reservedSlotByClient) {
