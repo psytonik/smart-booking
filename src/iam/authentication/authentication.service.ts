@@ -49,9 +49,11 @@ export class AuthenticationService {
   }
 
   async signIn(signInDto: SignInDto) {
-    const user: Users = await this.userRepository.findOneBy({
-      email: signInDto.email,
-    });
+    const user: Users = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email: signInDto.email })
+      .getOne();
     if (!user) {
       throw new UnauthorizedException('User does not exists ');
     }

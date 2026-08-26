@@ -7,7 +7,7 @@ import {
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from '../business/entities/business.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Slot } from '../slot-management/entities/slot.entity';
 import { SlotStatus } from '../slot-management/enums/slotStatus.enum';
 import { Booking } from './entities/booking.entity';
@@ -28,6 +28,7 @@ export class BookingService {
     @InjectRepository(Users)
     private readonly userRepository: Repository<Users>,
     private readonly notificationsService: NotificationsService,
+    private readonly dataSource: DataSource,
   ) {}
   async reserveSlot(
     reserveSlotDto: ReserveSlotDto,
@@ -37,47 +38,62 @@ export class BookingService {
     const business: Business = await this.businessRepository.findOneBy({
       id: businessId,
     });
+    if (!business) {
+      throw new NotFoundException('Business not found');
+    }
     const client: Users = await this.userRepository.findOneBy({
       email: user.email,
-    });
-    const slots: Slot[] = await this.slotRepository.findBy({
-      business: business,
-      status: SlotStatus.AVAILABLE,
     });
     const desiredDate = new Date(reserveSlotDto.reserveSlot);
     desiredDate.setSeconds(0, 0);
     if (desiredDate < new Date()) {
       throw new BadRequestException('Cannot book a slot in the past');
     }
-    const slotToReserve = slots.filter((slot) => {
-      const slotStartTime = new Date(slot.start_time);
-      slotStartTime.setSeconds(0, 0);
-      return slotStartTime.getTime() === desiredDate.getTime();
-    })[0];
-    if (!slotToReserve) {
-      throw new NotFoundException('No available slot for the desired time');
-    }
 
-    const booking = new Booking();
-    booking.book_slot = desiredDate;
-    booking.user = client;
-    booking.business = business;
-    booking.slot = slotToReserve;
+    // start_time may carry non-zero seconds depending on how the slot was
+    // created; match at minute granularity like the original comparison did.
+    const nextMinute = new Date(desiredDate.getTime() + 60_000);
 
-    await this.bookingRepository.save(booking);
+    const booking = await this.dataSource.transaction(async (manager) => {
+      // Lock the target slot row for the duration of the transaction so
+      // concurrent reservation attempts for the same slot serialize instead
+      // of both passing the availability check.
+      const slotToReserve = await manager
+        .createQueryBuilder(Slot, 'slot')
+        .setLock('pessimistic_write')
+        .where('slot.businessId = :businessId', { businessId })
+        .andWhere('slot.status = :status', { status: SlotStatus.AVAILABLE })
+        .andWhere('slot.start_time >= :desiredDate', { desiredDate })
+        .andWhere('slot.start_time < :nextMinute', { nextMinute })
+        .getOne();
 
-    slotToReserve.booking_by = booking;
-    slotToReserve.status = SlotStatus.UNAVAILABLE;
-    await this.slotRepository.save(slotToReserve);
+      if (!slotToReserve) {
+        throw new NotFoundException('No available slot for the desired time');
+      }
+
+      const newBooking = new Booking();
+      newBooking.book_slot = desiredDate;
+      newBooking.user = client;
+      newBooking.business = business;
+      newBooking.slot = slotToReserve;
+      await manager.save(newBooking);
+
+      slotToReserve.booking_by = newBooking;
+      slotToReserve.status = SlotStatus.UNAVAILABLE;
+      await manager.save(slotToReserve);
+
+      return newBooking;
+    });
+
     await this.notificationsService.send(
       booking.user.email,
-      `Service reserved in ${slotToReserve.start_time} at ${business.address}`,
+      `Service reserved in ${booking.slot.start_time} at ${business.address}`,
       `Reservation service from ${business.name}`,
     );
     await this.notificationsService.send(
       business.email,
-      `${client.email} reserved slot at ${slotToReserve.start_time}`,
-      `New Reservation ${slotToReserve.start_time}`,
+      `${client.email} reserved slot at ${booking.slot.start_time}`,
+      `New Reservation ${booking.slot.start_time}`,
     );
     return plainToClass(Booking, booking, {
       excludeExtraneousValues: true,
