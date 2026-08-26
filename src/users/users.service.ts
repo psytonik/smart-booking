@@ -17,6 +17,14 @@ export class UsersService {
       .getMany();
   }
 
+  async findByEmail(email: string): Promise<Users | null> {
+    return await this.userRepository.findOneBy({ email });
+  }
+
+  async save(user: Users): Promise<Users> {
+    return await this.userRepository.save(user);
+  }
+
   async findOne(id: number): Promise<Partial<Users>> {
     const user: Users = await this.userRepository.findOneBy({ id });
     if (!user) {

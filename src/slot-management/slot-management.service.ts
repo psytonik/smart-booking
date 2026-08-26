@@ -18,23 +18,48 @@ import { Between, Repository } from 'typeorm';
 import { Slot } from './entities/slot.entity';
 import { Business } from '../business/entities/business.entity';
 import { Users } from '../users/entities/user.entity';
+import { Booking } from '../booking/entities/booking.entity';
 import { SlotStatus } from './enums/slotStatus.enum';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
 import { DailySlotsDto } from './dto/dailySlots.dto';
 import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
 import { Role } from '../users/enums/role.enum';
+import { UsersService } from '../users/users.service';
+import { BusinessService } from '../business/business.service';
 
 @Injectable()
 export class SlotManagementService {
   constructor(
     @InjectRepository(Slot)
     private readonly slotRepository: Repository<Slot>,
-    @InjectRepository(Users)
-    private readonly userRepository: Repository<Users>,
-    @InjectRepository(Business)
-    private readonly businessRepository: Repository<Business>,
+    private readonly usersService: UsersService,
+    private readonly businessService: BusinessService,
   ) {}
+
+  async findAvailableSlots(
+    businessId: string,
+    start: Date,
+    end: Date,
+  ): Promise<Slot[]> {
+    return this.slotRepository
+      .createQueryBuilder('slot')
+      .where('slot.businessId = :businessId', { businessId })
+      .andWhere('slot.start_time >= :start', { start })
+      .andWhere('slot.end_time < :end', { end })
+      .andWhere('slot.status = :status', { status: SlotStatus.AVAILABLE })
+      .getMany();
+  }
+
+  async findSlotByBooking(booking: Booking): Promise<Slot | null> {
+    return this.slotRepository.findOneBy({ booking_by: booking });
+  }
+
+  async releaseSlot(slot: Slot): Promise<Slot> {
+    slot.status = SlotStatus.AVAILABLE;
+    slot.booking_by = null;
+    return this.slotRepository.save(slot);
+  }
 
   async setDailySlots(
     dailySlotsDto: DailySlotsDto,
@@ -167,19 +192,16 @@ export class SlotManagementService {
   }
 
   private async findUser(currentUser: ActiveUserData): Promise<Users> {
-    const user = await this.userRepository.findOneBy({
-      email: currentUser.email,
-    });
+    const user = await this.usersService.findByEmail(currentUser.email);
     if (user.role == Role.Client)
       throw new ForbiddenException('you not authorized as business owner');
     return user;
   }
 
   private async getBusinessByOwner(user): Promise<Business> {
-    const business: Business = await this.businessRepository.findOne({
-      where: { owner: { id: user.id } },
-      relations: ['owner'],
-    });
+    const business: Business = await this.businessService.findByOwnerId(
+      user.id,
+    );
     if (!business || business.owner.id !== user.id) {
       throw new BadRequestException('It is not your business dude');
     }

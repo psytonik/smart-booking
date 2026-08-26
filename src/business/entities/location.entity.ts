@@ -12,8 +12,6 @@ export class Location {
   @Column('double precision')
   lng: number;
 
-  @OneToOne(() => Business, (business: Business) => business.coords, {
-    eager: true,
-  })
-  business_id: string;
+  @OneToOne(() => Business, (business: Business) => business.coords)
+  business: Business;
 }

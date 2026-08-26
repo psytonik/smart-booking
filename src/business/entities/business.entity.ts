@@ -27,7 +27,7 @@ export class Business {
   @Column('text')
   address: string;
 
-  @OneToOne(() => Location, (location: Location) => location.business_id)
+  @OneToOne(() => Location, (location: Location) => location.business)
   @JoinColumn()
   coords: Location;
 

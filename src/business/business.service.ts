@@ -10,6 +10,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Users } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
+import { UsersService } from '../users/users.service';
 import slugify from 'slugify';
 import {
   Client,
@@ -27,7 +28,7 @@ export class BusinessService {
   constructor(
     @InjectRepository(Business)
     private readonly businessRepo: Repository<Business>,
-    @InjectRepository(Users) private readonly userRepo: Repository<Users>,
+    private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     @InjectRepository(Location)
     private readonly locationRepo: Repository<Location>,
@@ -35,35 +36,51 @@ export class BusinessService {
     this.googleMapsClient = new Client();
     this.key = this.configService.getOrThrow('GOOGLE_API_KEY');
   }
+
+  async findById(id: string): Promise<Business | null> {
+    return await this.businessRepo.findOneBy({ id });
+  }
+
+  async findByOwnerId(userId: number): Promise<Business | null> {
+    return await this.businessRepo.findOne({
+      where: { owner: { id: userId } },
+      relations: ['owner'],
+    });
+  }
+
   async openBusiness(
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
   ): Promise<Business> {
-    try {
-      const foundUser: Users = await this.userRepo.findOneBy({
-        email: user.email,
-      });
-      const { formattedAddress, coords } = await this.getLocationFromAddress(
-        createBusinessDto.address,
-      );
-      const newBusiness: Business = this.businessRepo.create({
-        ...createBusinessDto,
-        employees: [],
-        slots: [],
-        owner: foundUser,
-        address: formattedAddress,
-        slug: slugify(createBusinessDto.name, '-').toLowerCase(),
-        coords: coords,
-      });
+    const foundUser: Users = await this.usersService.findByEmail(user.email);
 
-      await this.businessRepo.save(newBusiness);
-      foundUser.business = newBusiness;
-      foundUser.role = Role.Business;
-      await this.userRepo.save(foundUser);
-      return newBusiness;
+    let formattedAddress: string;
+    let coords: Location;
+    try {
+      ({ formattedAddress, coords } = await this.getLocationFromAddress(
+        createBusinessDto.address,
+      ));
     } catch (err) {
-      throw new BadRequestException(err.message);
+      throw new BadRequestException(
+        `Could not resolve the given address: ${err.message}`,
+      );
     }
+
+    const newBusiness: Business = this.businessRepo.create({
+      ...createBusinessDto,
+      employees: [],
+      slots: [],
+      owner: foundUser,
+      address: formattedAddress,
+      slug: slugify(createBusinessDto.name, '-').toLowerCase(),
+      coords: coords,
+    });
+
+    await this.businessRepo.save(newBusiness);
+    foundUser.business = newBusiness;
+    foundUser.role = Role.Business;
+    await this.usersService.save(foundUser);
+    return newBusiness;
   }
 
   async findBusiness(): Promise<Business[]> {
