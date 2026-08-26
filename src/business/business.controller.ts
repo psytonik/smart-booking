@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -45,7 +46,11 @@ export class BusinessController {
   @Get(':slug')
   @Auth(AuthType.None)
   async getBySlug(@Param('slug') slug: string): Promise<Business> {
-    return this.businessService.getBusinessBySlug(slug);
+    const business = await this.businessService.getBusinessBySlug(slug);
+    if (!business) {
+      throw new NotFoundException('Business not found');
+    }
+    return business;
   }
 
   @ApiResponse({ status: 200, description: 'Business Info' })

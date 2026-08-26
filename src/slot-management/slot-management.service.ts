@@ -287,7 +287,11 @@ export class SlotManagementService {
 
     for (const slot of slots) {
       const existingSlot = await this.slotRepository.findOne({
-        where: { start_time: slot.start_time, end_time: slot.end_time },
+        where: {
+          business: { id: slot.business.id },
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        },
       });
       if (existingSlot) {
         throw new ConflictException('Slot with this time already exists');

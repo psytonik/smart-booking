@@ -12,7 +12,7 @@ export const dataSourceOptions = {
   entities: [join(__dirname, '..') + '/**/*.entity.js'],
   migrations: [join(__dirname, '..') + '/**/migrations/*.js'],
   synchronize: false,
-  logging: true,
+  logging: process.env.NODE_ENV !== 'production',
 } as DataSourceOptions;
 
 export default new DataSource(dataSourceOptions);

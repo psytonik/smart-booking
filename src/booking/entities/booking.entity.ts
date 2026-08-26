@@ -12,6 +12,7 @@ import { Expose } from 'class-transformer';
 
 @Entity()
 export class Booking {
+  @Expose()
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

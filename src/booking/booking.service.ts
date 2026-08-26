@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
@@ -21,6 +22,8 @@ import { SlotManagementService } from '../slot-management/slot-management.servic
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
+
   constructor(
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
@@ -81,16 +84,26 @@ export class BookingService {
       return newBooking;
     });
 
-    await this.notificationsService.send(
-      booking.user.email,
-      `Service reserved in ${booking.slot.start_time} at ${business.address}`,
-      `Reservation service from ${business.name}`,
-    );
-    await this.notificationsService.send(
-      business.email,
-      `${client.email} reserved slot at ${booking.slot.start_time}`,
-      `New Reservation ${booking.slot.start_time}`,
-    );
+    // The reservation is already committed at this point; a notification
+    // failure (e.g. email provider outage) shouldn't turn a successful
+    // booking into a 500 for the caller.
+    try {
+      await this.notificationsService.send(
+        booking.user.email,
+        `Service reserved in ${booking.slot.start_time} at ${business.address}`,
+        `Reservation service from ${business.name}`,
+      );
+      await this.notificationsService.send(
+        business.email,
+        `${client.email} reserved slot at ${booking.slot.start_time}`,
+        `New Reservation ${booking.slot.start_time}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to send booking notifications for booking ${booking.id}`,
+        err,
+      );
+    }
     return plainToClass(Booking, booking, {
       excludeExtraneousValues: true,
     });

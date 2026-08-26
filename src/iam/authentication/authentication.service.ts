@@ -117,15 +117,8 @@ export class AuthenticationService {
         issuer: this.jwtConfiguration.issuer,
       });
       const user: Users = await this.userRepository.findOneBy({ id: sub });
-      const isValid = await this.refreshTokenIdsStorage.validate(
-        user.id,
-        refreshTokenId,
-      );
-      if (isValid) {
-        await this.refreshTokenIdsStorage.invalidate(user.id);
-      } else {
-        throw new Error('Refresh Token invalid');
-      }
+      await this.refreshTokenIdsStorage.validate(user.id, refreshTokenId);
+      await this.refreshTokenIdsStorage.invalidate(user.id);
       return await this.generateTokens(user);
     } catch (e) {
       if (e instanceof InvalidatedRefreshTokenError) {
