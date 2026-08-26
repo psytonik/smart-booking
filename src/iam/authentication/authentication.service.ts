@@ -31,12 +31,14 @@ export class AuthenticationService {
     private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
     private readonly refreshTokenIdsStorage: RefreshTokenIdsStorage,
   ) {}
-  async signUp(signUpDto: SignUpDto) {
+  async signUp(signUpDto: SignUpDto): Promise<Omit<Users, 'password'>> {
     try {
       const newUser: Users = new Users();
       newUser.email = signUpDto.email;
       newUser.password = await this.hashingService.hash(signUpDto.password);
-      return await this.userRepository.save(newUser);
+      const savedUser = await this.userRepository.save(newUser);
+      delete savedUser.password;
+      return savedUser;
     } catch (e) {
       const pgUniqueViolationErrorCode = '23505';
       if (e.code === pgUniqueViolationErrorCode) {
