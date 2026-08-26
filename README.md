@@ -1,109 +1,127 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Smart Booking
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Smart Booking is a multi-tenant appointment-scheduling API. A business signs up, opens a storefront, defines its working hours as bookable slots (daily or weekly, with a lunch break carved out), and its customers reserve those slots. It's built as a NestJS modular monolith on PostgreSQL, with Redis backing refresh-token storage, Google Maps for address geocoding, and Google Calendar/SMTP for notifications.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the module map, entity model, and API surface, and [`ROADMAP.md`](./ROADMAP.md) for the history of fixes applied to this codebase.
 
-## Description
+## Core concepts
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Users** have a `role`: `client` (default, books appointments), `business` (owns a storefront), `employee` (works at one), or `admin`.
+- **Business** is a storefront a `client` opens via `POST /business/open`, which promotes them to the `business` role. A business has one owner, any number of employees, a geocoded address, and a slot schedule.
+- **Slot** is a bookable time window belonging to a business, generated in bulk (`POST /slots/daily` or `/weekly`) rather than created one at a time.
+- **Booking** links a `client` to a `Slot` they've reserved. Reserving a slot is transactional and row-locked, so two customers can't book the same slot at once.
 
-## Installation
-1 step you need to create .env at root of the project
-````bash
-# APP
-APP_PORT=4000
+## Tech stack
 
-# POSTGRES
-POSTGRES_DB=smartbooking
-POSTGRES_HOST=
+| Concern | Choice |
+|---|---|
+| Framework | NestJS 11 (Express) |
+| Language | TypeScript |
+| Database | PostgreSQL via TypeORM |
+| Ephemeral store | Redis (refresh-token storage) |
+| Auth | JWT access + refresh tokens, bcrypt password hashing |
+| Validation | class-validator / class-transformer |
+| API docs | Swagger, served at `/docs` |
+| External APIs | Google Maps Geocoding, Google Calendar, SMTP (nodemailer) |
+
+## Setup
+
+### 1. Environment
+
+Create a `.env` file at the project root:
+
+```bash
+# App
+APP_PORT=3000
+
+# Postgres
+POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=
+POSTGRES_USER=postgres
 POSTGRES_PASSWORD=
+POSTGRES_DB=smart_booking
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
 
 # JWT
 JWT_SECRET=
 JWT_AUDIENCE=
 JWT_TOKEN_ISSUER=
-JWT_ACCESS_TTL=360000
+JWT_ACCESS_TTL=3600
 JWT_REFRESH_TTL=86400
 
-# GOOGLE API KEY
+# Google Maps Geocoding (used when a business address is created/updated)
 GOOGLE_API_KEY=
 
-# GOOGLE OAUTH https://developers.google.com/oauthplayground/
-
+# Gmail OAuth2 (used to send booking/reservation emails) — see https://developers.google.com/oauthplayground/
 SMTP_USER=
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 GOOGLE_REFRESH_TOKEN=
-````
-```bash
-$ npm install
-
-$ createdb smartbooking
-
-$ docker-compose up -d 
-
-$ npm run migration:generate
-
-$ npm run migration:run
 ```
 
-## Running the app
+All of the above are required at boot — a missing var fails startup immediately with a clear error instead of running with broken config.
+
+### 2. Dependencies and infrastructure
 
 ```bash
-# development
-$ npm run start
+npm install
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# Starts Postgres and Redis
+docker-compose up -d
 ```
 
-## Test
+### 3. Database schema
+
+This project has no migration files yet (`synchronize` is intentionally `false` in `src/config/data-source.ts` to avoid accidental prod schema drift, and nothing has generated a baseline migration). To create the schema for local development, sync it directly from the compiled entities:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run build
+npx typeorm schema:sync -d dist/config/data-source.js
 ```
 
-## Support
+Run this again any time an entity changes. Once real migrations exist, prefer `npm run migration:run` instead.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### 4. Run it
 
-## Stay in touch
+```bash
+# development, with hot reload
+npm run start:dev
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# production build
+npm run build
+npm run start:prod
+```
 
-## License
+The API is served at `http://localhost:<APP_PORT>`, with interactive Swagger docs at `/docs`.
 
-Nest is [MIT licensed](LICENSE).
+## API overview
+
+| Area | Routes |
+|---|---|
+| Authentication | `POST /authentication/sign-up`, `/sign-in`, `/refresh-tokens` |
+| Users | `GET /users`, `GET /users/:id`, `PATCH /users/:id` (admin only) |
+| Business | `POST /business/open`, `GET /business`, `GET /business/:slug`, `PATCH /business/:slug` |
+| Slot management | `POST /slots/daily`, `POST /slots/weekly`, `GET /slots`, `GET /slots/:date`, `PATCH /slots/:date`, `DELETE /slots/:date`, `POST /slots/report` |
+| Booking | `POST /booking/:businessId`, `GET /booking/business/:businessId`, `GET /booking/slot/:id`, `DELETE /booking/slot/:id`, `GET /booking/slots` |
+
+Auth is enforced globally by default; routes that don't need it opt out explicitly via `@Auth(AuthType.None)`. Business/slot-management endpoints additionally require the `business`, `employee`, or `admin` role, and are scoped so a business can only manage its own data.
+
+## Testing
+
+```bash
+npm run test        # unit tests
+npm run test:e2e     # end-to-end tests
+npm run test:cov     # coverage
+```
+
+Note: this project currently has no unit test files under `src/`.
+
+## Linting and formatting
+
+```bash
+npm run lint
+npm run format
+```
