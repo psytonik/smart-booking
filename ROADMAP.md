@@ -61,6 +61,49 @@ Tracking issues from the 2026-08-26 backend + architecture code review. Ordered 
   Fix: added `@Unique(['business', 'start_time'])` on `Slot`.
   Files: `src/slot-management/entities/slot.entity.ts`
 
+## QA sweep (2026-08-26) — endpoint-by-endpoint testing with multiple tenants
+
+Found by manually exercising every endpoint against a live local stack with 2 businesses, 2 owners, multiple clients, and an admin.
+
+- [x] **Critical — any business owner could read/delete any other business's slots**
+  `getOpenedSlotByDay`, `closeOpenedSlotsByDate` (`DELETE /slots/:date`), and `updateDailySlots` filtered by `business: user.business`, but that relation is never loaded by `UsersService.findByEmail`, so the filter silently became `undefined` and matched every business. Confirmed by exploit: `owner1` deleted all of `owner2`'s slots via `DELETE /slots/<owner2's date>`.
+  Fix: all three now use `getBusinessByOwner(user)` (the pattern already correctly used elsewhere in this file) and filter by `business: { id: business.id }`. `getOpenedSlotByDay` also gained an explicit admin branch (matching the existing pattern in `findAllSlots`) so admins keep legitimate global visibility instead of losing access now that the accidental global-match bug is closed.
+  Verified locally: cross-tenant read now returns `[]`, cross-tenant delete destroys nothing, and both owners' and admin's legitimate access still work.
+  Files: `src/slot-management/slot-management.service.ts`
+
+- [x] **Critical — IDOR on `PATCH /business/:slug`, any business owner could edit any business**
+  The endpoint only checked `@Roles(Role.Business, Role.Admin)`, never that the caller owned *that specific* business. Confirmed by exploit: `owner2` changed `owner1`'s business description.
+  Fix: `updateExistingBusiness` now takes the requesting user and, unless they're `Admin`, verifies the target business is the one they actually own before applying any changes.
+  Verified locally: cross-tenant edit now `403`s; own-business edit and admin override both still work.
+  Files: `src/business/business.controller.ts`, `src/business/business.service.ts`
+
+- [x] **High — `PATCH /users/:id` was completely non-functional**
+  `CreateUserDto`/`UpdateUserDto` were empty classes with zero fields, so any body was rejected by the whitelist (`property X should not exist`), and an empty body `{}` threw a `500` (`UsersService.update()` called TypeORM `.update()` with no values to set, and passed a full user object as the criteria instead of the id).
+  Fix: `UpdateUserDto` now declares `information` (the one field with no other write path) with real validation; `UsersService.update()` calls `.update(id, dto)` correctly and skips the DB call entirely when there's nothing to update instead of crashing.
+  Verified locally: valid update works, empty-body update is a safe no-op, and disallowed fields (e.g. `role`) are still rejected.
+  Files: `src/users/dto/update-user.dto.ts`, `src/users/users.service.ts`
+
+- [x] **High — `POST /slots/report` was completely broken**
+  Query builder referenced `slot.bookingBy`/`slot.startTime`, neither of which are real column or property names (actual property names are `booking_by`/`start_time`) — every call returned `500`.
+  Fix: corrected both references.
+  Verified locally: returns `200` with the correct booked-slot data.
+  Files: `src/slot-management/slot-management.service.ts`
+
+- [ ] **Medium — slot-creation conflict check isn't scoped to the business**
+  `checkExistingSlotsForDay` queries `{ start_time, end_time }` with no `business` filter, so any business creating slots at a time another business already uses gets a false `409 Conflict`.
+  Files: `src/slot-management/slot-management.service.ts`
+
+- [ ] **Medium — a successful booking can still return `500` to the client**
+  `reserveSlot`'s notification-send calls aren't isolated from the response; if the (already-committed) booking succeeds but the confirmation email fails, the client sees `500` for a request that actually succeeded.
+  Files: `src/booking/booking.service.ts`
+
+- [ ] **Medium — `GET /business/:slug` returns `200` with an empty body for a nonexistent slug instead of `404`**
+  Files: `src/business/business.controller.ts`, `src/business/business.service.ts`
+
+- [ ] **Low — `WeeklySlotsDto.setHolidays` is required but unused**
+  `@IsArray()` with no `@IsOptional()`, yet nothing in `setWeeklySlots` reads it — every caller must pass a dead `[]`.
+  Files: `src/slot-management/dto/weeklySlots.dto.ts`
+
 ## Phase 4 — Low
 
 - [ ] Dead code: unreachable `else` branch in refresh-token validation (`refresh-token-ids.storage.ts` already throws before returning `false`, so the `if (isValid) {...} else {...}` at the call site can't take that branch).

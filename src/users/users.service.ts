@@ -39,8 +39,10 @@ export class UsersService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<Users> {
-    const user: Partial<Users> = await this.findOne(id);
-    await this.userRepository.update(user, updateUserDto);
+    await this.findOne(id);
+    if (Object.keys(updateUserDto).length > 0) {
+      await this.userRepository.update(id, updateUserDto);
+    }
     return await this.userRepository.findOneBy({ id });
   }
 }
