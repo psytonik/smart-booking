@@ -4,14 +4,14 @@ Tracking issues from the 2026-08-26 backend + architecture code review. Ordered 
 
 ## Phase 1 — Critical (exploitable now)
 
-- [ ] **Password hashes leak in API responses**
+- [x] **Password hashes leak in API responses**
   `Users.password` has no `{ select: false }`, and `Business.owner` / `Business.employees` are `eager: true`. `GET /slots`, slot-creation responses, and booking lookups return bcrypt hashes for business owners, employees, and customers to any authenticated caller.
-  Fix: add `{ select: false }` to `password`, drop the eager relations on `Business`, and serialize all responses through explicit DTOs instead of raw entities.
-  Files: `src/users/entities/user.entity.ts`, `src/business/entities/business.entity.ts`, `src/slot-management/slot-management.service.ts`, `src/booking/booking.service.ts`
+  Fix: added `{ select: false }` to `password` (login path updated to explicitly `addSelect` it) and dropped the eager relations on `Business`. Raw entities are still returned from some endpoints — explicit response DTOs are a separate follow-up, not required to close the leak since the password column is now never fetched by default.
+  Files: `src/users/entities/user.entity.ts`, `src/business/entities/business.entity.ts`, `src/iam/authentication/authentication.service.ts`, `src/slot-management/slot-management.service.ts`
 
-- [ ] **Slot double-booking race condition**
+- [x] **Slot double-booking race condition**
   `reserveSlot` reads slot availability, then writes the booking and the slot as two separate, unlocked saves — no transaction, no row lock. Concurrent requests can both pass the availability check and book the same slot.
-  Fix: atomic conditional update (`UPDATE slot SET status='unavailable' WHERE id=$1 AND status='available'`) or wrap in a transaction with `SELECT ... FOR UPDATE`.
+  Fix: wrapped the read + both writes in a single transaction, locking the target slot row with `pessimistic_write` so concurrent reservations for the same slot serialize instead of both passing the availability check.
   Files: `src/booking/booking.service.ts`
 
 ## Phase 2 — High

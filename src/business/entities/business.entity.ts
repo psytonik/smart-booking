@@ -37,15 +37,13 @@ export class Business {
   @Column()
   phone_number: string;
 
-  @OneToOne(() => Users, (user: Users) => user.business, { eager: true })
+  @OneToOne(() => Users, (user: Users) => user.business)
   owner: Users;
 
-  @OneToMany(() => Users, (user: Users) => user.workplace, { eager: true })
+  @OneToMany(() => Users, (user: Users) => user.workplace)
   employees: Users[];
 
-  @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business, {
-    eager: true,
-  })
+  @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business)
   slots: Slot[];
 
   @Column({ default: false })

@@ -176,10 +176,11 @@ export class SlotManagementService {
   }
 
   private async getBusinessByOwner(user): Promise<Business> {
-    const business: Business = await this.businessRepository.findOneBy({
-      owner: user,
+    const business: Business = await this.businessRepository.findOne({
+      where: { owner: { id: user.id } },
+      relations: ['owner'],
     });
-    if (business.owner.id !== user.id) {
+    if (!business || business.owner.id !== user.id) {
       throw new BadRequestException('It is not your business dude');
     }
     return business;
