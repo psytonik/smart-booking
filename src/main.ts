@@ -8,29 +8,30 @@ import * as compression from 'compression';
 const configService = new ConfigService();
 const PORT = configService.get('APP_PORT');
 async function bootstrap() {
-  try {
-    const app: INestApplication = await NestFactory.create(AppModule);
-    app.enableCors();
-    app.use(compression());
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    const config = new DocumentBuilder()
-      .setTitle('Smart Booking Api')
-      .setDescription('Api for book services')
-      .setVersion('0.1')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
+  const app: INestApplication = await NestFactory.create(AppModule);
+  app.enableCors();
+  app.use(compression());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  const config = new DocumentBuilder()
+    .setTitle('Smart Booking Api')
+    .setDescription('Api for book services')
+    .setVersion('0.1')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
 
-    SwaggerModule.setup('docs', app, document);
-    await app.listen(PORT);
-  } catch (e) {
-    console.log(e.message, 'Message of ERROR');
-  }
+  SwaggerModule.setup('docs', app, document);
+  await app.listen(PORT);
 }
-bootstrap().then(() => console.log(`App running on port ${PORT}`));
+bootstrap()
+  .then(() => console.log(`App running on port ${PORT}`))
+  .catch((e) => {
+    console.error('Failed to start application', e);
+    process.exit(1);
+  });

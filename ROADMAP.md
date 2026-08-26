@@ -28,33 +28,38 @@ Tracking issues from the 2026-08-26 backend + architecture code review. Ordered 
 
 ## Phase 3 — Medium
 
-- [ ] **Module boundaries not respected**
+- [x] **Module boundaries not respected**
   `BookingModule`, `SlotManagementModule`, and `IamModule` each register their own `TypeOrmModule.forFeature` for entities they don't own (`Business`, `Users`, `Slot`) instead of depending on the owning module's exported service. Concretely causes duplicated user-lookup logic between `AuthenticationService` and `UsersService`.
-  Fix: each entity has exactly one owning module; other modules import that module and use its service.
-  Files: `src/booking/booking.module.ts`, `src/slot-management/slot-management.module.ts`, `src/iam/iam.module.ts`
+  Fix: `UsersService` and `BusinessService` gained the methods other modules actually needed (`findByEmail`/`save` on `UsersService`; `findById`/`findByOwnerId` on `BusinessService`), and `SlotManagementService` gained `findAvailableSlots`/`findSlotByBooking`/`releaseSlot`. `BookingModule` and `SlotManagementModule` now import `UsersModule`/`BusinessModule` and go through those services instead of holding their own repos for foreign entities — each of `Users`, `Business`, `Slot`, `Booking` now has exactly one module with `TypeOrmModule.forFeature` for it.
+  **Deliberate, scoped exception:** `IamModule` still holds its own `Users` repository. Auth needs to select the `password` column (`select: false` since Phase 1 excludes it by default) and construct a new user with a hash — that's auth-domain logic on the `Users` entity, not something `UsersService` should expose to the rest of the app. Routing it through a shared service would mean either leaking password-column access more broadly or duplicating the auth-specific queries anyway.
+  Verified locally end-to-end: sign-up → open business → create slots → reserve → view → cancel all work through the refactored services.
+  Files: `src/users/users.service.ts`, `src/users/users.module.ts`, `src/business/business.service.ts`, `src/business/business.module.ts`, `src/slot-management/slot-management.service.ts`, `src/slot-management/slot-management.module.ts`, `src/booking/booking.service.ts`, `src/booking/booking.module.ts`
 
-- [ ] **Redis connection hardcoded**
+- [x] **Redis connection hardcoded**
   `new Redis({ host: 'localhost', port: 6379 })` ignores `ConfigService`/env vars — will silently fail to connect outside local dev.
+  Fix: reads `REDIS_HOST`/`REDIS_PORT` from `ConfigService`, defaulting to `localhost`/`6379` for local dev.
   Files: `src/iam/authentication/storage/refresh-token-ids.storage.ts`
 
-- [ ] **Errors swallowed/mismapped**
-  - Bootstrap wraps startup in try/catch and only `console.log`s failures without exiting non-zero, so orchestrators can't detect a failed boot.
-  - `openBusiness` catches all errors (DB, geocoding API, etc.) and rethrows as `BadRequestException`, masking real failure classes (e.g. an upstream API outage reported as a 400).
+- [x] **Errors swallowed/mismapped**
+  - Bootstrap wrapped startup in try/catch and only `console.log`'d failures without exiting non-zero, so orchestrators couldn't detect a failed boot. Fix: removed the swallowing try/catch; `bootstrap().catch()` now logs the real error and calls `process.exit(1)`. Verified locally: a missing required env var now fails fast with a clear message instead of continuing to serve.
+  - `openBusiness` caught all errors (DB, geocoding API, etc.) and rethrew as `BadRequestException`, masking real failure classes. Fix: narrowed the try/catch to wrap only the geocoding call (a genuinely client-correctable "bad address" case); DB/unexpected errors now propagate to Nest's default exception handling instead of being flattened into a misleading 400.
   Files: `src/main.ts`, `src/business/business.service.ts`
 
-- [ ] **Entity modeling bugs**
-  - `Booking.id` is `@PrimaryGeneratedColumn('uuid')` but typed `number`.
-  - `Location.business_id` is typed `string` but decorated as a `@OneToOne` relation — should be `business: Business`.
-  - `Slot.booking_by`'s inverse-side callback points at `booking.id` instead of a real relation property on `Booking`.
-  Files: `src/booking/entities/booking.entity.ts`, `src/business/entities/location.entity.ts`, `src/slot-management/entities/slot.entity.ts`
+- [x] **Entity modeling bugs**
+  - `Booking.id` is `@PrimaryGeneratedColumn('uuid')` but was typed `number` — now typed `string`.
+  - `Location.business_id` was typed `string` but decorated as a `@OneToOne` relation — now `business: Business`, and `Business.coords`'s inverse-side reference updated to match.
+  - `Slot.booking_by`'s inverse-side callback pointed at `booking.id` instead of a real relation property on `Booking` — now points at `booking.slot`.
+  Files: `src/booking/entities/booking.entity.ts`, `src/business/entities/location.entity.ts`, `src/business/entities/business.entity.ts`, `src/slot-management/entities/slot.entity.ts`
 
-- [ ] **No config validation schema**
-  A missing env var (e.g. `POSTGRES_PORT`) silently becomes `NaN` instead of failing fast at boot. Also `NotificationsModule` redundantly calls `ConfigModule.forRoot({ isGlobal: true })` a second time.
-  Files: `src/app.module.ts`, `src/config/data-source.ts`, `src/notifications/notifications.module.ts`
+- [x] **No config validation schema**
+  A missing env var (e.g. `POSTGRES_PORT`) silently became `NaN` instead of failing fast at boot. Also `NotificationsModule` redundantly called `ConfigModule.forRoot({ isGlobal: true })` a second time.
+  Fix: added a Joi `validationSchema` to `ConfigModule.forRoot` in `AppModule` covering every env var the app reads; removed the redundant `ConfigModule.forRoot` call in `NotificationsModule` (it's already global). Verified locally: removing a required var now fails startup with `Config validation error: "POSTGRES_PORT" is required` instead of silently continuing.
+  Files: `src/app.module.ts`, `src/notifications/notifications.module.ts`, `package.json` (added `joi`)
 
-- [ ] **No unique/composite DB constraints backing slot booking**
-  Nothing at the DB layer prevents a `Slot` from being linked to more than one `Booking`, or duplicate slots for the same business/time — protection lives entirely in application code.
-  Files: `src/slot-management/entities/slot.entity.ts`, `src/booking/entities/booking.entity.ts`
+- [x] **No unique/composite DB constraints backing slot booking**
+  Nothing at the DB layer prevented duplicate slots for the same business/time. (A `Slot` being linked to more than one `Booking` was already prevented — `Slot.booking_by`'s `@JoinColumn` gives that FK column a DB-level `UNIQUE` constraint, confirmed in the schema-sync output.)
+  Fix: added `@Unique(['business', 'start_time'])` on `Slot`.
+  Files: `src/slot-management/entities/slot.entity.ts`
 
 ## Phase 4 — Low
 

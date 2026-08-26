@@ -5,12 +5,14 @@ import {
   ManyToOne,
   JoinColumn,
   OneToOne,
+  Unique,
 } from 'typeorm';
 import { SlotStatus } from '../enums/slotStatus.enum';
 import { Business } from '../../business/entities/business.entity';
 import { Booking } from '../../booking/entities/booking.entity';
 
 @Entity()
+@Unique(['business', 'start_time'])
 export class Slot {
   @PrimaryGeneratedColumn()
   id: number;
@@ -27,7 +29,7 @@ export class Slot {
   @ManyToOne(() => Business, (business) => business.slots)
   business: Business;
 
-  @OneToOne(() => Booking, (booking) => booking.id, { eager: true })
+  @OneToOne(() => Booking, (booking) => booking.slot)
   @JoinColumn()
   booking_by: Booking;
 }

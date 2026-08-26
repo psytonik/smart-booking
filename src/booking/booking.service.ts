@@ -15,18 +15,18 @@ import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Users } from '../users/entities/user.entity';
 import { plainToClass } from 'class-transformer';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BusinessService } from '../business/business.service';
+import { UsersService } from '../users/users.service';
+import { SlotManagementService } from '../slot-management/slot-management.service';
 
 @Injectable()
 export class BookingService {
   constructor(
-    @InjectRepository(Business)
-    private readonly businessRepository: Repository<Business>,
-    @InjectRepository(Slot)
-    private readonly slotRepository: Repository<Slot>,
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
-    @InjectRepository(Users)
-    private readonly userRepository: Repository<Users>,
+    private readonly businessService: BusinessService,
+    private readonly usersService: UsersService,
+    private readonly slotManagementService: SlotManagementService,
     private readonly notificationsService: NotificationsService,
     private readonly dataSource: DataSource,
   ) {}
@@ -35,15 +35,11 @@ export class BookingService {
     businessId: string,
     user: ActiveUserData,
   ): Promise<Booking> {
-    const business: Business = await this.businessRepository.findOneBy({
-      id: businessId,
-    });
+    const business: Business = await this.businessService.findById(businessId);
     if (!business) {
       throw new NotFoundException('Business not found');
     }
-    const client: Users = await this.userRepository.findOneBy({
-      email: user.email,
-    });
+    const client: Users = await this.usersService.findByEmail(user.email);
     const desiredDate = new Date(reserveSlotDto.reserveSlot);
     desiredDate.setSeconds(0, 0);
     if (desiredDate < new Date()) {
@@ -106,19 +102,15 @@ export class BookingService {
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
 
-    return this.slotRepository
-      .createQueryBuilder('slot')
-      .where('slot.businessId = :businessId', { businessId })
-      .andWhere('slot.start_time >= :start', { start })
-      .andWhere('slot.end_time < :end', { end })
-      .andWhere('slot.status = :status', { status: SlotStatus.AVAILABLE })
-      .getMany();
+    return this.slotManagementService.findAvailableSlots(
+      businessId,
+      start,
+      end,
+    );
   }
 
   async findReservedSlotById(id, currentUser: ActiveUserData) {
-    const user: Users = await this.userRepository.findOneBy({
-      email: currentUser.email,
-    });
+    const user: Users = await this.usersService.findByEmail(currentUser.email);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -153,16 +145,13 @@ export class BookingService {
     if (!slotToCancel) {
       throw new NotFoundException('Slot not found');
     }
-    const slot: Slot = await this.slotRepository.findOneBy({
-      booking_by: slotToCancel,
-    });
+    const slot: Slot =
+      await this.slotManagementService.findSlotByBooking(slotToCancel);
 
     if (!slot) {
       throw new NotFoundException('Slot not found');
     }
-    slot.status = SlotStatus.AVAILABLE;
-    slot.booking_by = null;
-    await this.slotRepository.save(slot);
+    await this.slotManagementService.releaseSlot(slot);
     await this.bookingRepository.remove(slotToCancel);
     return {
       message: 'Your slot removed successfully',
@@ -170,9 +159,7 @@ export class BookingService {
   }
 
   async findReservedSlotsByUser(currentUser: ActiveUserData) {
-    const user: Users = await this.userRepository.findOneBy({
-      email: currentUser.email,
-    });
+    const user: Users = await this.usersService.findByEmail(currentUser.email);
     if (!user) {
       throw new NotFoundException('User not found');
     }
