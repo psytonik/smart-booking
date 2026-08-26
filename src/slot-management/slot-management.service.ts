@@ -172,8 +172,14 @@ export class SlotManagementService {
     if (isNaN(targetDate.getTime())) {
       throw new BadRequestException('Invalid date format');
     }
+    if (user.role === Role.Admin) {
+      return await this.slotRepository.findBy({
+        start_time: Between(startOfDay(targetDate), endOfDay(targetDate)),
+      });
+    }
+    const business = await this.getBusinessByOwner(user);
     return await this.slotRepository.findBy({
-      business: user.business,
+      business: { id: business.id },
       start_time: Between(startOfDay(targetDate), endOfDay(targetDate)),
     });
   }
@@ -328,7 +334,7 @@ export class SlotManagementService {
     }
     const existingSlots: Slot[] = await this.slotRepository.find({
       where: {
-        business: user.business,
+        business: { id: business.id },
         start_time: Between(startOfDay(date), endOfDay(date)),
       },
     });
@@ -383,8 +389,8 @@ export class SlotManagementService {
     const slots = await this.slotRepository
       .createQueryBuilder('slot')
       .where('slot.business = :business', { business: business.id })
-      .andWhere('slot.bookingBy IS NOT NULL')
-      .andWhere('slot.startTime BETWEEN :startDate AND :endDate', {
+      .andWhere('slot.booking_by IS NOT NULL')
+      .andWhere('slot.start_time BETWEEN :startDate AND :endDate', {
         startDate: new Date(startDate),
         endDate: new Date(endDate),
       })

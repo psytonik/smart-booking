@@ -56,7 +56,8 @@ export class BusinessController {
   async updateBusiness(
     @Param('slug') slug: string,
     @Body() body: UpdateBusinessDto,
+    @ActiveUser() user: ActiveUserData,
   ): Promise<Business> {
-    return this.businessService.updateExistingBusiness(slug, body);
+    return this.businessService.updateExistingBusiness(slug, body, user);
   }
 }

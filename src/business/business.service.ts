@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -117,10 +118,19 @@ export class BusinessService {
   async updateExistingBusiness(
     slug: string,
     updateData: UpdateBusinessDto,
+    user: ActiveUserData,
   ): Promise<Business> {
     const business: Business = await this.getBusinessBySlug(slug);
     if (!business) {
       throw new NotFoundException('Wrong slug or business not found');
+    }
+
+    if (user.role !== Role.Admin) {
+      const foundUser = await this.usersService.findByEmail(user.email);
+      const ownedBusiness = await this.findByOwnerId(foundUser.id);
+      if (!ownedBusiness || ownedBusiness.id !== business.id) {
+        throw new ForbiddenException('This is not your business');
+      }
     }
 
     const updatedFields: Partial<Business> = {};
