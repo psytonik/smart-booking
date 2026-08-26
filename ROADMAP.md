@@ -89,35 +89,48 @@ Found by manually exercising every endpoint against a live local stack with 2 bu
   Verified locally: returns `200` with the correct booked-slot data.
   Files: `src/slot-management/slot-management.service.ts`
 
-- [ ] **Medium — slot-creation conflict check isn't scoped to the business**
-  `checkExistingSlotsForDay` queries `{ start_time, end_time }` with no `business` filter, so any business creating slots at a time another business already uses gets a false `409 Conflict`.
+- [x] **Medium — slot-creation conflict check isn't scoped to the business**
+  `checkExistingSlotsForDay` queried `{ start_time, end_time }` with no `business` filter, so any business creating slots at a time another business already uses got a false `409 Conflict`.
+  Fix: scoped the query by `business: { id: slot.business.id }` too.
+  Verified locally: two different businesses can now create slots at the same day/hours; a true same-business duplicate is still correctly rejected with `409`.
   Files: `src/slot-management/slot-management.service.ts`
 
-- [ ] **Medium — a successful booking can still return `500` to the client**
-  `reserveSlot`'s notification-send calls aren't isolated from the response; if the (already-committed) booking succeeds but the confirmation email fails, the client sees `500` for a request that actually succeeded.
+- [x] **Medium — a successful booking can still return `500` to the client**
+  `reserveSlot`'s notification-send calls weren't isolated from the response; if the (already-committed) booking succeeded but the confirmation email failed, the client saw `500` for a request that actually succeeded.
+  Fix: wrapped the notification sends in a try/catch that logs the failure (`Logger.error`) instead of letting it propagate as the request's error.
+  Verified locally: booking now returns `201` even when the notification send fails, and the failure is still logged.
   Files: `src/booking/booking.service.ts`
 
-- [ ] **Medium — `GET /business/:slug` returns `200` with an empty body for a nonexistent slug instead of `404`**
-  Files: `src/business/business.controller.ts`, `src/business/business.service.ts`
+- [x] **Medium — `GET /business/:slug` returns `200` with an empty body for a nonexistent slug instead of `404`**
+  Fix: controller now throws `NotFoundException` when the service returns null.
+  Verified locally: returns `404 Business not found`.
+  Files: `src/business/business.controller.ts`
 
-- [ ] **Low — `WeeklySlotsDto.setHolidays` is required but unused**
-  `@IsArray()` with no `@IsOptional()`, yet nothing in `setWeeklySlots` reads it — every caller must pass a dead `[]`.
+- [x] **Low — `WeeklySlotsDto.setHolidays` is required but unused**
+  Fix: added `@IsOptional()`.
+  Verified locally: `POST /slots/weekly` succeeds without `setHolidays` in the body.
   Files: `src/slot-management/dto/weeklySlots.dto.ts`
 
 ## Phase 4 — Low
 
-- [ ] Dead code: unreachable `else` branch in refresh-token validation (`refresh-token-ids.storage.ts` already throws before returning `false`, so the `if (isValid) {...} else {...}` at the call site can't take that branch).
+- [x] Dead code: unreachable `else` branch in refresh-token validation (`refresh-token-ids.storage.ts` already throws before returning `false`, so the `if (isValid) {...} else {...}` at the call site can't take that branch).
+  Fix: `validate()` now returns `void` (it only ever throws or succeeds); the call site just calls it and invalidates, no dead branch.
+  Verified locally: refresh rotation and reuse-detection (`401 Access denied`) still both work.
   Files: `src/iam/authentication/authentication.service.ts`, `src/iam/authentication/storage/refresh-token-ids.storage.ts`
 
-- [ ] `POST /booking/:businessId` never returns the new booking's `id` — only `book_slot` has `@Expose()` on the `Booking` entity, so the client has no way to reference the reservation it just created.
-  Files: `src/booking/entities/booking.entity.ts`, `src/booking/booking.service.ts`
+- [x] `POST /booking/:businessId` never returns the new booking's `id` — only `book_slot` has `@Expose()` on the `Booking` entity, so the client has no way to reference the reservation it just created.
+  Fix: added `@Expose()` to `Booking.id`.
+  Verified locally: response now includes `id`.
+  Files: `src/booking/entities/booking.entity.ts`
 
-- [ ] `logging: true` on the TypeORM datasource logs full SQL + params — should be env-gated (e.g. only in development).
+- [x] `logging: true` on the TypeORM datasource logs full SQL + params — should be env-gated (e.g. only in development).
+  Fix: `logging: process.env.NODE_ENV !== 'production'`.
   Files: `src/config/data-source.ts`
 
-- [ ] **Stale `owner.role` in `openBusiness` response**
-  Found while smoke-testing locally: `POST /business/open` correctly persists the owner's role as `business` in the database, but the HTTP response body still shows `owner.role: "client"`. `businessRepo.create({ owner: foundUser, ... })` doesn't keep a reference to the same `foundUser` object, so the later `foundUser.role = Role.Business` mutation isn't reflected in the `newBusiness.owner` that gets returned. Cosmetic only — no data-integrity impact — but confusing for API consumers.
-  Fix: re-fetch (or re-assign) `newBusiness.owner` from the updated `foundUser` before returning, or return an explicit response DTO built from the post-update state instead of the raw entity.
+- [x] **Stale `owner.role` in `openBusiness` response**
+  Found while smoke-testing locally: `POST /business/open` correctly persists the owner's role as `business` in the database, but the HTTP response body still showed `owner.role: "client"`. `businessRepo.create({ owner: foundUser, ... })` doesn't keep a reference to the same `foundUser` object, so the later `foundUser.role = Role.Business` mutation wasn't reflected in the `newBusiness.owner` that gets returned.
+  Fix: copy the updated role onto `newBusiness.owner` before returning. (Naively assigning `foundUser` itself instead would create a circular reference — `foundUser.business` now points back at `newBusiness` — that breaks JSON serialization; caught and fixed during verification.)
+  Verified locally: response now shows `owner.role: "business"` immediately.
   Files: `src/business/business.service.ts`
 
 ## Already solid (no action needed)

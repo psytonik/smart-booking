@@ -81,6 +81,12 @@ export class BusinessService {
     foundUser.business = newBusiness;
     foundUser.role = Role.Business;
     await this.usersService.save(foundUser);
+    // businessRepo.create() doesn't keep a reference to foundUser, so
+    // newBusiness.owner would otherwise still reflect the pre-update role.
+    // Copy the fields directly rather than assigning foundUser itself,
+    // since foundUser.business now points back at newBusiness and would
+    // create a circular reference the response can't be serialized with.
+    newBusiness.owner = { ...newBusiness.owner, role: foundUser.role };
     return newBusiness;
   }
 

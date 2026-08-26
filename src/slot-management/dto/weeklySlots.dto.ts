@@ -1,5 +1,12 @@
-import { IsArray, IsDate, IsNumber, IsString, MinDate } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsDate,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MinDate,
+} from 'class-validator';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { parseISO } from 'date-fns';
 
@@ -12,13 +19,14 @@ export class WeeklySlotsDto {
   @IsArray()
   readonly setWorkDays: string[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: Array,
     description:
       'must be array of strings "Sunday", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday" ',
   })
+  @IsOptional()
   @IsArray()
-  readonly setHolidays: string[];
+  readonly setHolidays?: string[];
 
   @ApiProperty({
     type: Number,
