@@ -1,8 +1,8 @@
 import { OmitType, PartialType } from '@nestjs/swagger';
 import { CreateBusinessDto } from './create-business.dto';
 
-// The timezone can't be changed yet: existing slots are stored as absolute
-// instants, so their local times would silently shift.
+// Timezone and currency can't be changed yet: bookings are stored as
+// absolute instants with a price snapshot, so both would silently shift.
 export class UpdateBusinessDto extends PartialType(
-  OmitType(CreateBusinessDto, ['timezone'] as const),
+  OmitType(CreateBusinessDto, ['timezone', 'currency'] as const),
 ) {}

@@ -1,5 +1,7 @@
 # Roadmap
 
+> **Product requirements (PRD):** [Smart Booking — PRD](https://claude.ai/code/artifact/704c3a45-d934-41c6-8c59-d8b09a5f3ab9): what the product is, roles, key flows, requirements FR1–FR20 with status, monetization, release stages, risks and open questions. Start there for the *what and why*; this file is the engineering *how and when*. (The doc is private until shared from its Share menu.)
+
 Open work lives in the **2026-09-23 architecture review** section directly below. Everything after it is the closed history of the 2026-08-26 backend + architecture code review, kept for reference. Ordered by priority; work top to bottom within each phase.
 
 ---
@@ -13,7 +15,38 @@ Full read of `src/`, infra and docs after the 2026-08-26 roadmap was closed. Pro
 - **Google Calendar** → planned integration (keep the dependency, build it later).
 - **Nearby search, business-side cancellation, admin tools, booking limits** → wanted, but **scope and rules are still to be discussed** before implementation (see Phase F).
 
+## Product direction (from the product owner, 2026-09-23)
+
+What the product is, as stated by its owner. This overrides earlier assumptions in this document.
+
+- **Booking platform for service businesses** (barbers, salons, clinics, tutors, …). Every master works their own way.
+- **Clients book a service with a master**, not a bare time slot. Services have their own durations (a haircut and a beard trim take different time), and they can differ per master.
+- **Masters control their own day.** Breaks are the master's decision, not something the system carves out. A master may decide to work through lunch if clients want that hour.
+- **Clients never pay in the app.** The platform earns from **business subscriptions**; the plans and billing model are still to be designed.
+- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow).
+- **Notifications:** email first; **WhatsApp / Telegram** (and push for the mobile app) later.
+- **"Smart"** refers to future intelligent features in the client app (e.g. suggestions, reminders).
+- **Every business gets an exclusive, AI-generated design for its page.**
+
+### What this changes technically
+
+1. **Scheduling model: switch from pre-generated slots to working hours + computed availability.** Today a day is cut into fixed-length slot rows in advance. That can't represent services of different lengths on the same master's day, and a 30-min slot grid can't host a 45-min service. The standard model for this domain:
+   - **Working hours** per master: a weekly template plus per-date overrides (day off, different hours).
+   - **Blocked time** the master adds or removes themselves (break, errand), any time.
+   - **Appointments**: master + service + start, with end = start + duration.
+   - **Availability** is *computed*: working hours − blocked time − appointments, stepped for the requested service's duration.
+
+   What M3 built carries over: UTC/`timestamptz`, per-business timezone and DST handling, the staff model and access rules, and row locking on booking. The `slot` table and the auto-lunch logic get replaced. Double-booking protection moves to a Postgres exclusion constraint on `(staff, tstzrange(start, end))`, which rejects overlapping appointments of any length at the database level.
+2. **New central entity: Service**, meaning name, duration and price shown to clients (informational; clients don't pay), offered by specific masters with optional per-master duration/price.
+3. **Remove the automatic lunch break** (`lunchDuration`). Breaks become blocked time the master manages.
+4. **Notification channels**: turn `NotificationsService` into a channel-agnostic dispatcher (email now; WhatsApp, Telegram and mobile push as later adapters) with per-user contact details and preferences. The queue already fits this.
+5. **Mobile-ready API**: versioned routes (`/v1`), because shipped apps can't be force-updated; device tokens for push; stable error format.
+6. **AI-designed business pages**: the AI produces a **design spec (JSON)**, not HTML: palette, typography, layout variant, section styles, copy, image references. Web and the mobile apps render it with their own components. Reasons: one spec renders natively on iOS/Android and web; no third-party HTML/JS (no XSS, no broken layouts); the spec can be validated before publishing (contrast, required blocks like the booking button); owners can pick between variants and tweak them; versions allow rollback. Generation runs as a background job on the existing queue; images need object storage (GCS).
+7. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
+
 ## Priority plan (RICE, 2026-09-23)
+
+> **Superseded in part by the product direction above:** milestones 1–4 are done; the next milestone is **M6 — Services & flexible scheduling** (below), ahead of the M5 features.
 
 The Phases below group work by *type*. This plan orders it by *execution*: RICE score first, then adjusted for dependencies and launch-blocking risk. Work milestone by milestone.
 
@@ -213,7 +246,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   `findAllSlots` calls `getBusinessByOwner` *before* the admin check, so an admin without a business gets 400 and the admin branch is unreachable. Elsewhere admins get global access implicitly. Pick one model: admin endpoints take an explicit `businessId`.
   Files: `src/slot-management/slot-management.service.ts`
 
-- [ ] **Entity model cleanup**
+- [x] **Entity model cleanup**
+  **Done (M6):** the remaining slot↔booking FK question is moot; the `slot` table is gone and bookings hold their own time range.
   **Mostly done (M4).** `Business.bookings` inverse added (`Booking.business` no longer points at `slots`); `users.role` is a Postgres enum (migration `UserRoleEnum`, values preserved); an address change replaces the `Location` and deletes the old one in one transaction, and an unresolvable address now returns 400 like on create. The `book_slot`/`business` duplication is kept on purpose as a history snapshot (documented on the entity). **Remaining, with F2:** move the slot↔booking FK to the booking side.
   - `Booking.business` has its inverse set to `business.slots` (a `Slot[]`). It needs `Business.bookings: Booking[]`.
   - `Booking.book_slot` and `Booking.business` duplicate `slot.start_time` and `slot.business`. Keep them only if intentional (history snapshot), otherwise derive them.
@@ -271,6 +305,39 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   To do: OAuth connection per business (and optionally per employee); create/update/delete a calendar event when a booking is created or cancelled (through the notification queue from Phase C); store tokens encrypted.
   **To discuss:** one-way push or two-way sync (block slots that are busy in Google Calendar); whether clients also get an event / `.ics` attachment.
 
+## Phase G — Product model (from the 2026-09-23 product direction)
+
+### Milestone 6 — Services & flexible scheduling ✅ Done 2026-09-23
+
+- [x] **G1 Service catalog.** `Service` (business, name, duration, price for display, active) plus `StaffService` (which masters offer it, optional per-master duration/price). CRUD for owners; public list per business.
+  **Done (M6).** `Service` + `StaffService` (per-staff duration/buffer/price overrides); owner CRUD at `/services` (delete = deactivate, history kept), `PUT /services/:id/staff`; public `GET /business/:slug/services`. `Business.currency` (ISO 4217, required on create).
+- [x] **G2 Working hours.** Weekly template per master plus date overrides (day off, custom hours), in the business timezone. Replaces `POST /slots/daily|weekly`.
+  **Done (M6).** `WorkingHours` (weekly template, split shifts) + `ScheduleOverride` (per-date hours or day off) at `/schedule/working-hours` and `/schedule/overrides/:date`; overlapping or inverted intervals → 400. The `/slots/*` endpoints are gone.
+- [x] **G3 Blocked time.** The master adds or removes breaks and blocks themselves at any time. Replaces the automatic lunch break.
+  **Done (M6).** `TimeBlock` at `/schedule/blocks`; a block over a confirmed booking → 409. The automatic lunch break is removed.
+- [x] **G4 Computed availability.** `GET /businesses/:id/availability?serviceId&staffId?&date` returns free start times from hours − blocks − appointments, stepped by service duration. Pure function, unit-tested like `slot-schedule.ts` (DST included).
+  **Done (M6).** Pure `availability.ts` (15-min local grid, duration must fit in working hours, buffer must stay clear of bookings/blocks, split shifts, DST) with 12 unit tests; `GET /booking/business/:id/availability?serviceId&staffId&from&days` (≤14 days) returns `{start, end, staffId, price_minor}`.
+- [x] **G5 Appointments.** Booking becomes master + service + start, with end derived. A Postgres exclusion constraint on `(staff, tstzrange(start, end))` prevents overlaps; the existing transactional flow stays. Folds in F2's booking statuses/history and C4's FK question, since the slot table goes away.
+  **Done (M6).** `POST /booking/:businessId {serviceId, start, staffId?}` re-validates against availability and inserts under a per-staff advisory lock. The Postgres exclusion constraint `booking_no_overlap` is the guarantee (an e2e test inserts directly and gets `23P01`). Bookings snapshot duration/price/currency; status `confirmed | cancelled_by_client | cancelled_by_business`; client cancel keeps the record. e2e: 5 concurrent requests → exactly one 201. Found while testing: without the lock, concurrent overlapping inserts deadlock (`40P01`) during the constraint check.
+- [x] **G6 Migration.** Convert existing slots/bookings (bookings become appointments with a default service), then drop `slot`.
+  **Done (M6).** `ServicesAndFlexibleScheduling`: bookings keep time and staff (from their slot, or `book_slot` + owner as fallback) and point to an inactive per-business "Appointment" service; slot schedules aren't converted (pre-launch); `slot` dropped. Verified up → down → up on dev data, no drift.
+
+**Decided 2026-09-23:** start times on a fixed **15-minute** grid (local time); a **buffer** after each appointment (set on the service, overridable per master like duration and price); **price is shown** to clients, in the business's currency (`Business.currency`, ISO 4217, stored as integer minor units).
+
+### Later
+
+- [ ] **G7 Notification channels.** Channel-agnostic dispatcher; user contact details and preferences; WhatsApp, Telegram, mobile push adapters (email adapter = today's `EmailSender`).
+- [ ] **G8 Mobile-ready API.** `/v1` prefix, device-token registration for push, documented error format.
+- [ ] **G9 Subscriptions.** Plans, per-business subscription, limits (staff count, …), billing provider. Needs a product decision on plans first.
+- [ ] **G11 AI-designed business pages.**
+  - `BusinessDesign` (versioned JSON spec, validated against a schema; status draft/published); `DesignGeneration` job on the queue.
+  - Inputs: business type, name, description, owner's style wishes, uploaded logo/photos.
+  - Endpoints: generate N variants → preview → publish → tweak → roll back. The public business endpoint returns the published spec.
+  - Automatic checks before publishing: schema validity, colour contrast (WCAG AA), required blocks present, copy moderation.
+  - Object storage (GCS) for logos, photos and generated images.
+  - **To agree:** does the design also apply to the business screen in the client mobile app (recommended: yes, same spec)? Pick-from-variants vs one result + regenerate? AI-generated imagery or only the owner's photos? Is this a paid-plan feature (ties into G9)?
+- [ ] **G10 "Smart" client features.** Future: suggestions, reminders, rebooking. Out of scope until the core is live.
+
 ## Phase F — Product features: wanted, rules to be discussed
 
 These are confirmed as wanted, but **requirements have to be agreed before implementation**. Each item lists the questions to settle first.
@@ -279,6 +346,7 @@ These are confirmed as wanted, but **requirements have to be agreed before imple
   Discuss: search radius and sorting, filters (category, availability today), whether to switch to PostGIS (`geography(Point)` + GiST index) or keep lat/lng with a bounding-box query, and categories/tags for businesses.
 
 - [ ] **Business-side cancellation plus booking history.** Today only the client can cancel, and cancelling hard-deletes the booking (the report loses it).
+  **Partly done (M6):** bookings now have statuses and are never deleted (client cancel → `cancelled_by_client`, history kept). **Still to agree:** business-side cancellation rules (reason, client notification) and the client cancellation window.
   Discuss: `Booking.status` (`active | cancelled_by_client | cancelled_by_business | completed | no_show`) instead of delete; required reason; client notification; cancellation window/policy for clients (e.g. not later than N hours before).
 
 - [ ] **Admin tools.** An admin can only be created through the REPL, and `Business.featured` has no write path.

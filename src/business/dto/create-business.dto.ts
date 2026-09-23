@@ -1,4 +1,4 @@
-import { IsString, IsTimeZone } from 'class-validator';
+import { IsISO4217CurrencyCode, IsString, IsTimeZone } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateBusinessDto {
@@ -29,4 +29,11 @@ export class CreateBusinessDto {
   })
   @IsTimeZone()
   readonly timezone: string;
+
+  @ApiProperty({
+    example: 'EUR',
+    description: 'ISO 4217 currency; service prices are in its minor units',
+  })
+  @IsISO4217CurrencyCode()
+  readonly currency: string;
 }
