@@ -15,7 +15,7 @@ describe('Authentication (e2e)', () => {
     const { refreshToken } = await signUp(app, 'client@e2e.io');
 
     await request(app.getHttpServer())
-      .get('/booking/slots')
+      .get('/booking/mine')
       .set('Authorization', `Bearer ${refreshToken}`)
       .expect(401);
   });
@@ -89,12 +89,13 @@ describe('Authentication (e2e)', () => {
         email: 'newowner@e2e.io',
         phone_number: '0',
         timezone: 'UTC',
+        currency: 'EUR',
       })
       .expect(201);
 
     // Same token, still carrying role "client".
     await request(server)
-      .get('/slots')
+      .get('/schedule/working-hours')
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
   });

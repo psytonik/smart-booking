@@ -4,58 +4,69 @@ import { DataSource } from 'typeorm';
 import {
   bearer,
   createOwner,
+  createService,
   createTestApp,
-  DAILY_SCHEDULE,
-  FUTURE_DAY,
   resetDatabase,
+  setWorkingHours,
   Tokens,
 } from './utils/test-app';
 
 describe('Tenant isolation (e2e)', () => {
+  type Owner = {
+    tokens: Tokens;
+    businessId: string;
+    slug: string;
+    userId: number;
+  };
   let app: INestApplication;
-  let owner1: { tokens: Tokens; businessId: string; slug: string };
-  let owner2: { tokens: Tokens; businessId: string; slug: string };
+  let owner1: Owner;
+  let owner2: Owner;
+  let service1: string;
+
+  const server = () => app.getHttpServer();
 
   beforeAll(async () => {
     app = await createTestApp();
     await resetDatabase(app);
     owner1 = await createOwner(app, 'owner1@e2e.io', 'Acme');
     owner2 = await createOwner(app, 'owner2@e2e.io', 'Beta');
-    for (const owner of [owner1, owner2]) {
-      await request(app.getHttpServer())
-        .post('/slots/daily')
-        .set('Authorization', bearer(owner.tokens))
-        .send(DAILY_SCHEDULE)
-        .expect(201);
-    }
+    await setWorkingHours(app, owner1.tokens);
+    service1 = await createService(app, owner1.tokens, [
+      { staffId: owner1.userId },
+    ]);
   });
   afterAll(() => app.close());
 
-  const slotsOf = async (owner: { tokens: Tokens }) =>
-    (
-      await request(app.getHttpServer())
-        .get(`/slots/${FUTURE_DAY}`)
-        .set('Authorization', bearer(owner.tokens))
-        .expect(200)
-    ).body;
-
-  it('lets two businesses use the same hours', async () => {
-    expect(await slotsOf(owner1)).toHaveLength(3);
-    expect(await slotsOf(owner2)).toHaveLength(3);
+  it("does not let an owner edit another business's service", async () => {
+    await request(server())
+      .patch(`/services/${service1}`)
+      .set('Authorization', bearer(owner2.tokens))
+      .send({ price_minor: 1 })
+      .expect(403);
   });
 
-  it("does not let an owner delete another business's slots", async () => {
-    await request(app.getHttpServer())
-      .delete(`/slots/${FUTURE_DAY}`)
+  it("only lists the caller's own services", async () => {
+    const res = await request(server())
+      .get('/services')
       .set('Authorization', bearer(owner2.tokens))
-      .expect(204);
+      .expect(200);
+    expect(res.body).toEqual([]);
+  });
 
-    expect(await slotsOf(owner2)).toHaveLength(0);
-    expect(await slotsOf(owner1)).toHaveLength(3);
+  it("does not let an owner manage another business's staff", async () => {
+    await request(server())
+      .get(`/schedule/working-hours?staffId=${owner1.userId}`)
+      .set('Authorization', bearer(owner2.tokens))
+      .expect(404);
+    await request(server())
+      .put(`/services/${service1}/staff`)
+      .set('Authorization', bearer(owner1.tokens))
+      .send({ staff: [{ staffId: owner2.userId }] })
+      .expect(400);
   });
 
   it("does not let an owner edit another owner's business", async () => {
-    await request(app.getHttpServer())
+    await request(server())
       .patch(`/business/${owner1.slug}`)
       .set('Authorization', bearer(owner2.tokens))
       .send({ description: 'hijacked' })
@@ -67,7 +78,7 @@ describe('Tenant isolation (e2e)', () => {
       app.get(DataSource).query('SELECT count(*)::int AS n FROM location');
     const [before] = await locations();
 
-    await request(app.getHttpServer())
+    await request(server())
       .patch(`/business/${owner1.slug}`)
       .set('Authorization', bearer(owner1.tokens))
       .send({ address: 'New street 5' })
@@ -78,7 +89,7 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   it('rejects an address that cannot be resolved', async () => {
-    await request(app.getHttpServer())
+    await request(server())
       .patch(`/business/${owner1.slug}`)
       .set('Authorization', bearer(owner1.tokens))
       .send({ address: 'nowhere at all' })
@@ -86,7 +97,7 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   it('rejects opening a second business', async () => {
-    await request(app.getHttpServer())
+    await request(server())
       .post('/business/open')
       .set('Authorization', bearer(owner1.tokens))
       .send({
@@ -96,6 +107,7 @@ describe('Tenant isolation (e2e)', () => {
         email: 'a@e2e.io',
         phone_number: '0',
         timezone: 'Europe/Berlin',
+        currency: 'EUR',
       })
       .expect(409);
   });

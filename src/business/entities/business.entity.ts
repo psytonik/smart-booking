@@ -7,9 +7,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Users } from '../../users/entities/user.entity';
-import { Slot } from '../../slot-management/entities/slot.entity';
 import { Location } from './location.entity';
-import { Booking } from '../../booking/entities/booking.entity';
+import { Booking } from '../../scheduling/entities/booking.entity';
 
 @Entity()
 export class Business {
@@ -32,6 +31,10 @@ export class Business {
   @Column({ default: 'UTC' })
   timezone: string;
 
+  /** ISO 4217 code; service prices are in its minor units. */
+  @Column({ type: 'char', length: 3, default: 'USD' })
+  currency: string;
+
   @OneToOne(() => Location, (location: Location) => location.business)
   @JoinColumn()
   coords: Location;
@@ -47,9 +50,6 @@ export class Business {
 
   @OneToMany(() => Users, (user: Users) => user.workplace)
   employees: Users[];
-
-  @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business)
-  slots: Slot[];
 
   @OneToMany(() => Booking, (booking: Booking) => booking.business)
   bookings: Booking[];

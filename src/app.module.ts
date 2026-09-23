@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as Joi from 'joi';
-import { SlotManagementModule } from './slot-management/slot-management.module';
-import { BookingModule } from './booking/booking.module';
+import { SchedulingModule } from './scheduling/scheduling.module';
+import { ServicesModule } from './services/services.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { IamModule } from './iam/iam.module';
@@ -110,8 +110,8 @@ import { AuthenticationController } from './iam/authentication/authentication.co
         };
       },
     }),
-    SlotManagementModule,
-    BookingModule,
+    ServicesModule,
+    SchedulingModule,
     UsersModule,
     NotificationsModule,
     IamModule,

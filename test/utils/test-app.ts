@@ -45,7 +45,7 @@ export async function resetDatabase(app: INestApplication): Promise<void> {
   await app
     .get(DataSource)
     .query(
-      'TRUNCATE users, business, location, slot, booking RESTART IDENTITY CASCADE',
+      'TRUNCATE users, business, location, service, staff_service, working_hours, schedule_override, time_block, booking RESTART IDENTITY CASCADE',
     );
 }
 
@@ -80,6 +80,7 @@ export async function createOwner(
   email: string,
   businessName: string,
   timezone = 'Europe/Berlin',
+  currency = 'EUR',
 ): Promise<{
   tokens: Tokens;
   businessId: string;
@@ -97,6 +98,7 @@ export async function createOwner(
       email,
       phone_number: '000',
       timezone,
+      currency,
     })
     .expect(201);
   return {
@@ -128,22 +130,76 @@ export async function makeEmployee(
   return { tokens: await signIn(app, email), userId: rows[0].id };
 }
 
-/** The parts of a slot response the tests look at. */
-export interface SlotBody {
-  status: string;
-  start_time: string;
-  staff: { id: number };
-}
-
 export const bearer = (tokens: Tokens) => `Bearer ${tokens.accessToken}`;
 
 /** A Monday far enough ahead to never be in the past. */
 export const FUTURE_DAY = '2030-01-07';
 
-export const DAILY_SCHEDULE = {
-  openingHours: '09:00',
-  closingHours: '12:00',
-  lunchDuration: '0 min',
-  timePerClient: '60 min',
-  startDate: FUTURE_DAY,
-};
+/** Mon–Fri 09:00–17:00. */
+export const WEEKDAY_HOURS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+].map((weekday) => ({
+  weekday,
+  intervals: [{ start: '09:00', end: '17:00' }],
+}));
+
+export async function setWorkingHours(
+  app: INestApplication,
+  tokens: Tokens,
+  days: unknown[] = WEEKDAY_HOURS,
+  staffId?: number,
+): Promise<void> {
+  await request(app.getHttpServer())
+    .put('/schedule/working-hours')
+    .set('Authorization', bearer(tokens))
+    .send({ days, staffId })
+    .expect(200);
+}
+
+/** Creates a service and assigns it to the given staff members. */
+export async function createService(
+  app: INestApplication,
+  owner: Tokens,
+  staff: { staffId: number; [override: string]: number }[],
+  service: Record<string, unknown> = {},
+): Promise<string> {
+  const created = await request(app.getHttpServer())
+    .post('/services')
+    .set('Authorization', bearer(owner))
+    .send({
+      name: 'Haircut',
+      duration_minutes: 30,
+      buffer_minutes: 0,
+      price_minor: 8000,
+      ...service,
+    })
+    .expect(201);
+  await request(app.getHttpServer())
+    .put(`/services/${created.body.id}/staff`)
+    .set('Authorization', bearer(owner))
+    .send({ staff })
+    .expect(200);
+  return created.body.id;
+}
+
+export async function availability(
+  app: INestApplication,
+  businessId: string,
+  query: Record<string, string | number>,
+): Promise<
+  { start: string; end: string; staffId: number; price_minor: number }[]
+> {
+  const res = await request(app.getHttpServer())
+    .get(`/booking/business/${businessId}/availability`)
+    .query(query)
+    .expect(200);
+  return res.body;
+}
+
+/** "HH:mm" in UTC, for compact assertions. */
+export const utcTimes = (items: { start: string }[]) =>
+  items.map((i) => i.start.slice(11, 16));

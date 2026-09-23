@@ -35,7 +35,7 @@ export class UsersService {
   }
 
   /**
-   * A user who can hold slots in `businessId`: its owner or one of its
+   * A user who can take bookings in `businessId`: its owner or one of its
    * employees. Returns null for anyone else.
    */
   async findStaffMember(id: number, businessId: string): Promise<Users | null> {
