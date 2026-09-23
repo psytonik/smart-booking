@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Users } from './entities/user.entity';
@@ -17,12 +21,16 @@ export class UsersService {
       .getMany();
   }
 
-  async findByEmail(email: string): Promise<Users | null> {
-    return await this.userRepository.findOneBy({ email });
-  }
-
-  async save(user: Users): Promise<Users> {
-    return await this.userRepository.save(user);
+  /**
+   * Resolves the authenticated caller from the JWT `sub` claim. A valid token
+   * whose user has since been deleted is treated as unauthenticated.
+   */
+  async findActiveUser(id: number): Promise<Users> {
+    const user = id ? await this.userRepository.findOneBy({ id }) : null;
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
+    return user;
   }
 
   async findOne(id: number): Promise<Partial<Users>> {

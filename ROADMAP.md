@@ -36,7 +36,7 @@ RICE ignores dependencies and treats a security hole like any other item, so fou
 | 5 | A4 Slot input validation (DoS) | 66.7 | |
 | 6 | A6 `business/open` repeatable + non-unique slug | 26.7 | ⬆ Pulled up: data integrity, small |
 
-Exit criteria: every item has a regression e2e test (the start of B5).
+Exit criteria: every item has a regression test (the start of B5). **✅ Done 2026-09-23**, 22 unit tests (`npm test`); the e2e harness follows in B5a.
 
 ### Milestone 2 — Deployable foundation
 
@@ -94,21 +94,25 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 
 ## Phase A — Critical (security / data integrity)
 
-- [ ] **Refresh token is accepted as an access token → wrong-user impersonation**
+- [x] **Refresh token is accepted as an access token → wrong-user impersonation**
+  **Done (M1).** Reproduced first: a client's refresh token on `GET /booking/slots` returned the admin's bookings. Tokens now carry `type: access|refresh` (`TokenType`); `AccessTokenGuard` verifies with explicit secret/audience/issuer and rejects anything that isn't `access`; `/refresh-tokens` rejects anything that isn't `refresh`. Tokens issued before the fix have no `type` and are rejected, so users must sign in again once. Verified live: refresh token as Bearer → 401, access token on refresh endpoint → 401, normal rotation → 200. Tests: `access-token.guard.spec.ts`.
   Access and refresh tokens are signed with the same secret/audience/issuer, and `AccessTokenGuard` verifies with `this.jwtConfiguration` without checking what kind of token it got. A refresh token (`{ sub, refreshTokenId }`, 24h TTL) passes the guard, so `request.user.email` is `undefined`. Every service then resolves the caller with `usersService.findByEmail(user.email)` → `findOneBy({ email: undefined })`. TypeORM 0.3 drops `undefined` where-conditions, so the query returns **the first row of `users`**, which may be the admin. Endpoints without `@Roles` (`POST /booking/:businessId`, `GET /booking/slots`, `POST /business/open`, …) then run as that user.
   Fix: add a `type: 'access' | 'refresh'` claim (or separate secrets) and reject refresh tokens in `AccessTokenGuard`. Resolve the caller by `sub` (the user id), never by email (see next item). Add an e2e test that sends a refresh token as a Bearer token.
   Files: `src/iam/authentication/guards/access-token.guard.ts`, `src/iam/authentication/authentication.service.ts`
 
-- [ ] **Caller identity resolved by email instead of `sub`, and a missing user isn't handled**
+- [x] **Caller identity resolved by email instead of `sub`, and a missing user isn't handled**
+  **Done (M1).** `UsersService.findActiveUser(sub)` replaces `findByEmail` everywhere; a missing id is never queried and a deleted user gets 401. Dead `if (!user)` branches and the unused `findByEmail`/`save` removed. Tests: `users.service.spec.ts`.
   `findByEmail(user.email)` appears in business, slot and booking services. Email is mutable and not the JWT subject. `strictNullChecks: false` hides the `null` case: a deleted user reaches `user.role` and gets a 500. Add `UsersService.findByIdOrFail(sub)` and use it everywhere, or load the user once in a guard/interceptor.
   Files: `src/business/business.service.ts`, `src/slot-management/slot-management.service.ts`, `src/booking/booking.service.ts`
 
-- [ ] **`POST /slots/weekly` ignores `weeksAhead` → duplicate slots / 500**
+- [x] **`POST /slots/weekly` ignores `weeksAhead` → duplicate slots / 500**
+  **Done (M1).** Days are generated as `firstDay + offset` over `weeksAhead * 7` days and filtered by work days. `setWorkDays` is validated with `@IsIn`, `weeksAhead` is `@IsInt @Min(1) @Max(12)`. `setHolidays` now means **specific ISO dates to skip** (`yyyy-mm-dd`). It was previously accepted and ignored, so clients sending day names now get 400. A day is scheduled as a whole: a request touching a day that already has slots returns 409 listing those dates (one query for the whole range, replacing one query per slot). All slots are saved in one transaction. Verified live: 3 weeks Mon/Wed with one holiday → 5 distinct days, 10 slots.
   The `i` loop never shifts the date by `i * 7` days. Every "week" generates the same dates, and `@Unique(['business','start_time'])` turns any `weeksAhead > 1` into a 500. `setWorkDays` isn't validated either (an unknown day gives `indexOf = -1` and a nonsense date), `setHolidays` is accepted but ignored, and `weeksAhead` has no upper bound.
   Fix: `addWeeks(date, i)`; `@IsIn(DAYS, { each: true })`; `@Min(1) @Max(12)` (or a similar limit) on `weeksAhead`; implement `setHolidays` or remove it; run `checkExistingSlotsForDay` as the daily path does. Do the whole batch in one transaction.
   Files: `src/slot-management/slot-management.service.ts`, `src/slot-management/dto/weeklySlots.dto.ts`
 
-- [ ] **Slot-generation input is unvalidated → DoS and silently wrong schedules**
+- [x] **Slot-generation input is unvalidated → DoS and silently wrong schedules**
+  **Done (M1).** DTOs validate `HH:mm` and `N min` with `@Matches`; the formats are unchanged, so existing clients keep working. The new `buildSchedule()` works in minutes (half-hours supported), requires 5–480 min per client, closing after opening, and lunch shorter than the day, and floors the slot count so no slot runs past closing. `PATCH /slots/:date` validates *before* deleting existing slots. Verified live: `0 min` → 400, `09:30`–`17:00` at 45 min → 10 slots ending 17:00. Tests: `slot-management.service.spec.ts`.
   - `timePerClient: "0 min"` gives `totalSlots = Infinity`, and the loop in `createSlots` never ends (memory/CPU DoS by any business user).
   - `parseTime` keeps only the hour: `"09:30"` becomes 9:00, so opening/closing on half-hours is impossible.
   - A duration that doesn't divide the day (e.g. 45 min over 8h) gives a fractional `totalSlots`, so the last slot runs past closing time.
@@ -116,12 +120,14 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   Fix: DTOs take `HH:mm` (`@Matches`) and integer minutes (`@IsInt @Min(5) @Max(480)`); validate the relations between them in the service; `Math.floor` the slot count.
   Files: `src/slot-management/dto/*.ts`, `src/slot-management/slot-management.service.ts`
 
-- [ ] **`DELETE /slots/:date` deletes asynchronously and, for admins, globally**
+- [x] **`DELETE /slots/:date` deletes asynchronously and, for admins, globally**
+  **Done (M1).** One awaited `DELETE … WHERE business = own AND status = AVAILABLE AND day`, always scoped to the caller's own business (admins included; an explicit admin override belongs to C3). Invalid date → 400. Verified live with two businesses: an admin without a business deletes nothing, and an owner deletes only their own free slots.
   `datesToDelete.filter(async …)` fires `remove()` calls without awaiting them. The endpoint returns 204 before anything is deleted, and errors become unhandled rejections. Also, for `admin`, `getOpenedSlotByDay` returns **every business's** slots for that date, so an admin call wipes the whole platform's free slots for that day.
   Fix: one `DELETE … WHERE business = :id AND status = AVAILABLE AND start_time BETWEEN …`, awaited; an admin must pass an explicit `businessId`.
   Files: `src/slot-management/slot-management.service.ts`
 
-- [ ] **`POST /business/open` can be repeated and demotes admins**
+- [x] **`POST /business/open` can be repeated and demotes admins**
+  **Done (M1).** A second business → 409; employees → 403; admins keep their role. `slug` is `UNIQUE`, with `-2`, `-3` suffixes on collision (on create and on rename). Location, business and user are saved in one transaction; geocoding no longer writes a `Location` before the business exists. Not verified live: the local Google API key returns 403. Covered by `business.service.spec.ts`.
   No check that the user already owns a business: a second call creates a new business and overwrites `users.businessId`, leaving the first one orphaned. Any role can call it, and it sets `role = business`, so an admin (or employee) who opens a business loses their role. `slug` has no unique constraint, so two businesses with the same name get the same slug and `GET /business/:slug` returns an arbitrary one (rename via `PATCH` has the same problem).
   Fix: reject if the user already owns a business; don't downgrade admins; `@Unique` on `slug` plus a suffix on collision; wrap location + business + user updates in one transaction.
   Files: `src/business/business.service.ts`, `src/business/entities/business.entity.ts`

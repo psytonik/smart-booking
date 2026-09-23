@@ -4,15 +4,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import {
-  addDays,
-  addMinutes,
-  endOfDay,
-  setHours,
-  setMinutes,
-  startOfDay,
-  startOfToday,
-} from 'date-fns';
+import { addDays, addMinutes, endOfDay, format, startOfDay } from 'date-fns';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Slot } from './entities/slot.entity';
@@ -27,6 +19,11 @@ import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
 import { Role } from '../users/enums/role.enum';
 import { UsersService } from '../users/users.service';
 import { BusinessService } from '../business/business.service';
+import {
+  MAX_TIME_PER_CLIENT,
+  MIN_TIME_PER_CLIENT,
+  WEEK_DAYS,
+} from './slot-management.constants';
 
 @Injectable()
 export class SlotManagementService {
@@ -67,23 +64,19 @@ export class SlotManagementService {
   ): Promise<Slot[]> {
     const user: Users = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
+    const schedule = this.buildSchedule(dailySlotsDto);
 
-    let start: Date = new Date(dailySlotsDto.startDate) || startOfToday();
-    await this.checkSlotsExistenceByDate(start, business);
-    start = this.setTime(start, this.parseTime(dailySlotsDto.openingHours));
-    const { totalSlots, lunchStartSlot, lunchEndSlot } =
-      this.calculateSlots(dailySlotsDto);
+    const day = startOfDay(new Date(dailySlotsDto.startDate));
+    await this.assertDaysAreFree([day], business);
 
-    let dailySlots = this.createSlots(
-      totalSlots,
-      start,
-      this.parseTime(dailySlotsDto.timePerClient, 'min'),
-      lunchStartSlot,
-      lunchEndSlot,
+    const dailySlots = this.createSlots(
+      schedule.totalSlots,
+      addMinutes(day, schedule.openingMinutes),
+      schedule.timePerClient,
+      schedule.lunchStartSlot,
+      schedule.lunchEndSlot,
       business,
     );
-    dailySlots = await this.checkExistingSlotsForDay(dailySlots);
-
     return await this.slotRepository.save(dailySlots);
   }
 
@@ -93,53 +86,46 @@ export class SlotManagementService {
   ): Promise<Slot[]> {
     const user = await this.findUser(currentUser);
     const business = await this.getBusinessByOwner(user);
-    const { totalSlots, lunchStartSlot, lunchEndSlot } =
-      this.calculateSlots(weeklySlotsDto);
+    const schedule = this.buildSchedule(weeklySlotsDto);
 
-    const slots = [];
-    for (let i = 0; i < weeklySlotsDto.weeksAhead; i++) {
-      for (let j = 0; j < weeklySlotsDto.setWorkDays.length; j++) {
-        const workDay = weeklySlotsDto.setWorkDays[j];
-        const startDate = weeklySlotsDto.startDate
-          ? new Date(weeklySlotsDto.startDate)
-          : new Date();
-        const startDateDay = startDate.getDay();
-        const dayIndex = [
-          'Sunday',
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-        ].indexOf(workDay);
-        let date;
-        if (startDateDay <= dayIndex) {
-          // The workday is in this week
-          date = addDays(startDate, dayIndex - startDateDay);
-        } else {
-          // The workday is in next week
-          date = addDays(startDate, 7 - startDateDay + dayIndex);
-        }
+    const firstDay = startOfDay(
+      weeklySlotsDto.startDate
+        ? new Date(weeklySlotsDto.startDate)
+        : new Date(),
+    );
+    const workDayIndexes = new Set(
+      weeklySlotsDto.setWorkDays.map((d) =>
+        WEEK_DAYS.indexOf(d as (typeof WEEK_DAYS)[number]),
+      ),
+    );
+    const holidays = new Set(weeklySlotsDto.setHolidays ?? []);
 
-        await this.checkSlotsExistenceByDate(date, business);
-
-        const start = this.setTime(
-          date,
-          this.parseTime(weeklySlotsDto.openingHours),
-        );
-        const dailySlots: Slot[] = this.createSlots(
-          totalSlots,
-          start,
-          this.parseTime(weeklySlotsDto.timePerClient, 'min'),
-          lunchStartSlot,
-          lunchEndSlot,
-          business,
-        );
-        slots.push(...dailySlots);
+    const days: Date[] = [];
+    for (let offset = 0; offset < weeklySlotsDto.weeksAhead * 7; offset++) {
+      const day = addDays(firstDay, offset);
+      if (
+        workDayIndexes.has(day.getDay()) &&
+        !holidays.has(format(day, 'yyyy-MM-dd'))
+      ) {
+        days.push(day);
       }
     }
+    if (days.length === 0) {
+      throw new BadRequestException('No work days in the requested range');
+    }
+    await this.assertDaysAreFree(days, business);
 
+    const slots: Slot[] = days.flatMap((day) =>
+      this.createSlots(
+        schedule.totalSlots,
+        addMinutes(day, schedule.openingMinutes),
+        schedule.timePerClient,
+        schedule.lunchStartSlot,
+        schedule.lunchEndSlot,
+        business,
+      ),
+    );
+    // save() with an array runs in a single transaction.
     return this.slotRepository.save(slots);
   }
 
@@ -188,17 +174,22 @@ export class SlotManagementService {
     date: string,
     user: ActiveUserData,
   ): Promise<void> {
-    await this.findUser(user);
-    const datesToDelete: Slot[] = await this.getOpenedSlotByDay(date, user);
-    datesToDelete.filter(async (date: Slot): Promise<Slot> => {
-      if (date.status == SlotStatus.AVAILABLE) {
-        return await this.slotRepository.remove(date);
-      }
+    const targetDate = new Date(date);
+    if (isNaN(targetDate.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+    // Always scoped to the caller's own business, admins included: an
+    // unscoped delete would wipe every business's free slots for the day.
+    const business = await this.getBusinessByOwner(await this.findUser(user));
+    await this.slotRepository.delete({
+      business: { id: business.id },
+      status: SlotStatus.AVAILABLE,
+      start_time: Between(startOfDay(targetDate), endOfDay(targetDate)),
     });
   }
 
   private async findUser(currentUser: ActiveUserData): Promise<Users> {
-    const user = await this.usersService.findByEmail(currentUser.email);
+    const user = await this.usersService.findActiveUser(currentUser.sub);
     if (user.role == Role.Client)
       throw new ForbiddenException('you not authorized as business owner');
     return user;
@@ -214,12 +205,68 @@ export class SlotManagementService {
     return business;
   }
 
-  private parseTime(time: string, suffix = ''): number {
-    return parseInt(time.split(suffix || ':')[0]);
+  /**
+   * Validates the working-hours input and turns it into a slot grid. Rejects
+   * input that would produce no slots, fractional slots past closing time, or
+   * an unbounded loop (e.g. `timePerClient: "0 min"`).
+   */
+  private buildSchedule(dto: {
+    openingHours: string;
+    closingHours: string;
+    lunchDuration: string;
+    timePerClient: string;
+  }): {
+    openingMinutes: number;
+    timePerClient: number;
+    totalSlots: number;
+    lunchStartSlot: number;
+    lunchEndSlot: number;
+  } {
+    const openingMinutes = this.parseClock(dto.openingHours);
+    const closingMinutes = this.parseClock(dto.closingHours);
+    const lunchDuration = parseInt(dto.lunchDuration, 10);
+    const timePerClient = parseInt(dto.timePerClient, 10);
+
+    if (
+      timePerClient < MIN_TIME_PER_CLIENT ||
+      timePerClient > MAX_TIME_PER_CLIENT
+    ) {
+      throw new BadRequestException(
+        `timePerClient must be between ${MIN_TIME_PER_CLIENT} and ${MAX_TIME_PER_CLIENT} minutes`,
+      );
+    }
+    const workMinutes = closingMinutes - openingMinutes;
+    if (workMinutes <= 0) {
+      throw new BadRequestException('closingHours must be after openingHours');
+    }
+    if (lunchDuration >= workMinutes) {
+      throw new BadRequestException(
+        'lunchDuration must be shorter than the working day',
+      );
+    }
+    const totalSlots = Math.floor(workMinutes / timePerClient);
+    if (totalSlots === 0) {
+      throw new BadRequestException(
+        'timePerClient is longer than the working day',
+      );
+    }
+    const lunchStartSlot = Math.floor(totalSlots / 2);
+    const lunchEndSlot = Math.min(
+      totalSlots,
+      lunchStartSlot + Math.ceil(lunchDuration / timePerClient),
+    );
+    return {
+      openingMinutes,
+      timePerClient,
+      totalSlots,
+      lunchStartSlot,
+      lunchEndSlot,
+    };
   }
 
-  private setTime(date: Date, hour: number): Date {
-    return setMinutes(setHours(date, hour), 0);
+  private parseClock(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
   }
 
   private createSlots(
@@ -261,65 +308,35 @@ export class SlotManagementService {
     return slots;
   }
 
-  private async checkSlotsExistenceByDate(
-    date: Date,
+  /**
+   * A day is scheduled as a whole: creating slots for a day that already has
+   * any is a conflict (use PATCH /slots/:date to change it).
+   */
+  private async assertDaysAreFree(
+    days: Date[],
     business: Business,
   ): Promise<void> {
-    const existingSlots = await this.slotRepository.find({
+    const existing = await this.slotRepository.find({
+      select: { id: true, start_time: true },
       where: {
-        business,
-        start_time: Between(startOfDay(date), endOfDay(date)),
+        business: { id: business.id },
+        start_time: Between(
+          startOfDay(days[0]),
+          endOfDay(days[days.length - 1]),
+        ),
       },
     });
-
-    const unavailableSlotsExist = existingSlots.some(
-      (slot): boolean => slot.status == SlotStatus.UNAVAILABLE,
+    const takenDays = new Set(
+      existing.map((slot) => format(slot.start_time, 'yyyy-MM-dd')),
     );
-    if (unavailableSlotsExist) {
+    const conflicts = days
+      .map((day) => format(day, 'yyyy-MM-dd'))
+      .filter((day) => takenDays.has(day));
+    if (conflicts.length > 0) {
       throw new ConflictException(
-        'Unavailable slots for this day already exist',
+        `Slots already exist for: ${conflicts.join(', ')}`,
       );
     }
-  }
-
-  private async checkExistingSlotsForDay(slots: Slot[]): Promise<Slot[]> {
-    const nonExistingSlots: Slot[] = [];
-
-    for (const slot of slots) {
-      const existingSlot = await this.slotRepository.findOne({
-        where: {
-          business: { id: slot.business.id },
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-        },
-      });
-      if (existingSlot) {
-        throw new ConflictException('Slot with this time already exists');
-      }
-      if (!existingSlot) {
-        nonExistingSlots.push(slot);
-      }
-    }
-
-    return nonExistingSlots;
-  }
-
-  private calculateSlots(dailySlotsDto: DailySlotsDto | WeeklySlotsDto): {
-    totalSlots: number;
-    lunchStartSlot: number;
-    lunchEndSlot: number;
-  } {
-    const openingHour = this.parseTime(dailySlotsDto.openingHours);
-    const closingHour = this.parseTime(dailySlotsDto.closingHours);
-    const lunchDuration = this.parseTime(dailySlotsDto.lunchDuration, 'min');
-    const timePerClient = this.parseTime(dailySlotsDto.timePerClient, 'min');
-
-    const totalSlots = (closingHour - openingHour) * (60 / timePerClient);
-    const lunchStartSlot = Math.floor(totalSlots / 2);
-    const lunchEndSlot =
-      lunchStartSlot + Math.ceil(lunchDuration / timePerClient);
-
-    return { totalSlots, lunchStartSlot, lunchEndSlot };
   }
 
   async updateDailySlots(
@@ -348,20 +365,14 @@ export class SlotManagementService {
     const availableSlots = existingSlots.filter(
       (slot) => slot.status !== SlotStatus.UNAVAILABLE,
     );
+    const schedule = this.buildSchedule(updateDailySlots);
     await this.slotRepository.remove(availableSlots);
-    const start: Date = this.setTime(
-      date,
-      this.parseTime(updateDailySlots.openingHours),
-    );
-    const { totalSlots, lunchStartSlot, lunchEndSlot } = this.calculateSlots(
-      updateDailySlots as DailySlotsDto,
-    );
     const updatedSlots: Slot[] = this.createSlots(
-      totalSlots,
-      start,
-      this.parseTime(updateDailySlots.timePerClient, 'min'),
-      lunchStartSlot,
-      lunchEndSlot,
+      schedule.totalSlots,
+      addMinutes(startOfDay(date), schedule.openingMinutes),
+      schedule.timePerClient,
+      schedule.lunchStartSlot,
+      schedule.lunchEndSlot,
       business,
       unavailableSlots,
     );

@@ -1,12 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './entities/business.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Users } from '../users/entities/user.entity';
@@ -33,6 +34,7 @@ export class BusinessService {
     private readonly configService: ConfigService,
     @InjectRepository(Location)
     private readonly locationRepo: Repository<Location>,
+    private readonly dataSource: DataSource,
   ) {
     this.googleMapsClient = new Client();
     this.key = this.configService.getOrThrow('GOOGLE_API_KEY');
@@ -53,7 +55,13 @@ export class BusinessService {
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
   ): Promise<Business> {
-    const foundUser: Users = await this.usersService.findByEmail(user.email);
+    const foundUser: Users = await this.usersService.findActiveUser(user.sub);
+    if (foundUser.role === Role.Employee) {
+      throw new ForbiddenException('Employees cannot open a business');
+    }
+    if (await this.findByOwnerId(foundUser.id)) {
+      throw new ConflictException('You already own a business');
+    }
 
     let formattedAddress: string;
     let coords: Location;
@@ -73,14 +81,20 @@ export class BusinessService {
       slots: [],
       owner: foundUser,
       address: formattedAddress,
-      slug: slugify(createBusinessDto.name, '-').toLowerCase(),
+      slug: await this.generateUniqueSlug(createBusinessDto.name),
       coords: coords,
     });
 
-    await this.businessRepo.save(newBusiness);
     foundUser.business = newBusiness;
-    foundUser.role = Role.Business;
-    await this.usersService.save(foundUser);
+    // Admins keep their role; opening a business must not demote them.
+    if (foundUser.role !== Role.Admin) {
+      foundUser.role = Role.Business;
+    }
+    await this.dataSource.transaction(async (manager) => {
+      await manager.save(coords);
+      await manager.save(newBusiness);
+      await manager.save(foundUser);
+    });
     // businessRepo.create() doesn't keep a reference to foundUser, so
     // newBusiness.owner would otherwise still reflect the pre-update role.
     // Copy the fields directly rather than assigning foundUser itself,
@@ -132,7 +146,7 @@ export class BusinessService {
     }
 
     if (user.role !== Role.Admin) {
-      const foundUser = await this.usersService.findByEmail(user.email);
+      const foundUser = await this.usersService.findActiveUser(user.sub);
       const ownedBusiness = await this.findByOwnerId(foundUser.id);
       if (!ownedBusiness || ownedBusiness.id !== business.id) {
         throw new ForbiddenException('This is not your business');
@@ -141,9 +155,12 @@ export class BusinessService {
 
     const updatedFields: Partial<Business> = {};
 
-    if (updateData.name) {
+    if (updateData.name && updateData.name !== business.name) {
       updatedFields.name = updateData.name;
-      updatedFields.slug = slugify(updateData.name, '-').toLowerCase();
+      updatedFields.slug = await this.generateUniqueSlug(
+        updateData.name,
+        business.id,
+      );
     }
 
     if (updateData.description) {
@@ -164,7 +181,7 @@ export class BusinessService {
           updateData.address,
         );
         updatedFields.address = formattedAddress;
-        updatedFields.coords = coords;
+        updatedFields.coords = await this.locationRepo.save(coords);
       } catch (e) {
         console.error('Error updating address', e);
       }
@@ -172,6 +189,39 @@ export class BusinessService {
 
     const updatedBusiness = this.businessRepo.merge(business, updatedFields);
     return this.businessRepo.save(updatedBusiness);
+  }
+
+  /**
+   * Slugs are unique; on collision append the lowest free numeric suffix
+   * (`acme`, `acme-2`, `acme-3`, ...).
+   */
+  private async generateUniqueSlug(
+    name: string,
+    excludeBusinessId?: string,
+  ): Promise<string> {
+    const base = slugify(name, { lower: true, strict: true }) || 'business';
+    const taken = new Set(
+      (
+        await this.businessRepo
+          .createQueryBuilder('business')
+          .select(['business.id', 'business.slug'])
+          .where('(business.slug = :base OR business.slug LIKE :pattern)', {
+            base,
+            pattern: `${base}-%`,
+          })
+          .getMany()
+      )
+        .filter((b) => b.id !== excludeBusinessId)
+        .map((b) => b.slug),
+    );
+    if (!taken.has(base)) {
+      return base;
+    }
+    let suffix = 2;
+    while (taken.has(`${base}-${suffix}`)) {
+      suffix++;
+    }
+    return `${base}-${suffix}`;
   }
 
   private async getLocationFromAddress(
@@ -189,8 +239,6 @@ export class BusinessService {
     const location: Location = new Location();
     location.lat = map.geometry.location.lat;
     location.lng = map.geometry.location.lng;
-
-    await this.locationRepo.save(location);
 
     return {
       coords: location,

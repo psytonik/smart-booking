@@ -42,7 +42,7 @@ export class BookingService {
     if (!business) {
       throw new NotFoundException('Business not found');
     }
-    const client: Users = await this.usersService.findByEmail(user.email);
+    const client: Users = await this.usersService.findActiveUser(user.sub);
     const desiredDate = new Date(reserveSlotDto.reserveSlot);
     desiredDate.setSeconds(0, 0);
     if (desiredDate < new Date()) {
@@ -123,12 +123,7 @@ export class BookingService {
   }
 
   async findReservedSlotById(id, currentUser: ActiveUserData) {
-    const user: Users = await this.usersService.findByEmail(currentUser.email);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    const user: Users = await this.usersService.findActiveUser(currentUser.sub);
     const reservedSlotByClient: Booking = await this.bookingRepository
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
@@ -172,10 +167,7 @@ export class BookingService {
   }
 
   async findReservedSlotsByUser(currentUser: ActiveUserData) {
-    const user: Users = await this.usersService.findByEmail(currentUser.email);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const user: Users = await this.usersService.findActiveUser(currentUser.sub);
     return await this.bookingRepository
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')

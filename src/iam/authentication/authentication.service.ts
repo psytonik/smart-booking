@@ -20,6 +20,7 @@ import {
   RefreshTokenIdsStorage,
 } from './storage/refresh-token-ids.storage';
 import { randomUUID } from 'crypto';
+import { TokenType } from './enums/token-type.enum';
 
 @Injectable()
 export class AuthenticationService {
@@ -94,10 +95,11 @@ export class AuthenticationService {
       this.signToken<Partial<ActiveUserData>>(
         user.id,
         this.jwtConfiguration.accessTokenTtl,
-        { email: user.email, role: user.role },
+        { email: user.email, role: user.role, type: TokenType.Access },
       ),
       this.signToken(user.id, this.jwtConfiguration.refreshTokenTtl, {
         refreshTokenId,
+        type: TokenType.Refresh,
       }),
     ]);
     await this.refreshTokenIdsStorage.insert(user.id, refreshTokenId);
@@ -109,14 +111,20 @@ export class AuthenticationService {
 
   async refreshToken(refreshTokenDto: RefreshTokenDto) {
     try {
-      const { sub, refreshTokenId } = await this.jwtService.verifyAsync<
-        Pick<ActiveUserData, 'sub'> & { refreshTokenId: string }
+      const { sub, refreshTokenId, type } = await this.jwtService.verifyAsync<
+        Pick<ActiveUserData, 'sub' | 'type'> & { refreshTokenId: string }
       >(refreshTokenDto.refreshToken, {
         secret: this.jwtConfiguration.secret,
         audience: this.jwtConfiguration.audience,
         issuer: this.jwtConfiguration.issuer,
       });
+      if (type !== TokenType.Refresh) {
+        throw new UnauthorizedException('Invalid token type');
+      }
       const user: Users = await this.userRepository.findOneBy({ id: sub });
+      if (!user) {
+        throw new UnauthorizedException('User no longer exists');
+      }
       await this.refreshTokenIdsStorage.validate(user.id, refreshTokenId);
       await this.refreshTokenIdsStorage.invalidate(user.id);
       return await this.generateTokens(user);
