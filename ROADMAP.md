@@ -357,6 +357,10 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   - Object storage (GCS) for logos, photos and generated images.
   - **To agree:** does the design also apply to the business screen in the client mobile app (recommended: yes, same spec)? Pick-from-variants vs one result + regenerate? AI-generated imagery or only the owner's photos? Is this a paid-plan feature (ties into G9)?
 - [ ] **G10 "Smart" client features.** Future: suggestions, reminders, rebooking. Out of scope until the core is live.
+- [ ] **G12 Business QR code.** Each business gets a generated QR code (its public page / booking link) that clients can scan to add the business to favorites in the client app.
+  - **To agree:** what the QR encodes (slug URL vs a deep link); static per business or regenerable; where it's surfaced (owner dashboard, printable asset, business page).
+- [ ] **G13 Unlisted ("QR-only") businesses.** A stripped-down tier for businesses that don't want to be publicly discoverable — notably home-based/informal beauty-sector businesses (common in Israel) operating off the books, who avoid public listings but are still a customer segment worth keeping. These businesses would be reachable **only via their QR code / direct link**, excluded from search, nearby search (F1), and any public directory listing.
+  - **To agree:** which features are cut in this tier vs the full listing (subscription plan/pricing implications, tie-in with G9); whether they still show reviews/ratings; whether owners can upgrade to a full public listing later; any compliance/liability considerations for knowingly hosting unregistered businesses.
 
 ## Phase F — Product features: wanted, rules to be discussed
 
