@@ -1,14 +1,55 @@
-version: '3.8'
+# Local development: `docker compose up -d db redis`, then `npm run start:dev`.
+# Full stack in containers: `docker compose --profile app up --build`.
 services:
   db:
     image: postgres:15-alpine
-    restart: always
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_booking}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   redis:
-    image: redis
+    image: redis:7-alpine
+    restart: unless-stopped
     ports:
-      - "6379:6379"
-    restart: always
+      - '6379:6379'
+    # Password is optional locally; set REDIS_PASSWORD in .env to require one.
+    command: ['sh', '-c', 'exec redis-server $${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli $${REDIS_PASSWORD:+-a $$REDIS_PASSWORD} ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    profiles: ['app']
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_HOST: redis
+    ports:
+      - '${APP_PORT:-3000}:${APP_PORT:-3000}'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  redis-data:

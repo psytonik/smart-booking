@@ -6,6 +6,7 @@ import { Business } from './entities/business.entity';
 import { Location } from './entities/location.entity';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
+import { GeocodingService } from './geocoding.service';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { UsersModule } from '../users/users.module';
     ConfigModule,
   ],
   controllers: [BusinessController],
-  providers: [BusinessService],
+  providers: [BusinessService, GeocodingService],
   exports: [BusinessService],
 })
 export class BusinessModule {}

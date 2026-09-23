@@ -14,31 +14,21 @@ import { Users } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
 import { UsersService } from '../users/users.service';
 import slugify from 'slugify';
-import {
-  Client,
-  GeocodeResponse,
-  GeocodeResult,
-} from '@googlemaps/google-maps-services-js';
-import { ConfigService } from '@nestjs/config';
+import { GeocodingService } from './geocoding.service';
 import { Location } from './entities/location.entity';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 
 @Injectable()
 export class BusinessService {
-  private googleMapsClient: Client;
-  private key: string;
   constructor(
     @InjectRepository(Business)
     private readonly businessRepo: Repository<Business>,
     private readonly usersService: UsersService,
-    private readonly configService: ConfigService,
+    private readonly geocodingService: GeocodingService,
     @InjectRepository(Location)
     private readonly locationRepo: Repository<Location>,
     private readonly dataSource: DataSource,
-  ) {
-    this.googleMapsClient = new Client();
-    this.key = this.configService.getOrThrow('GOOGLE_API_KEY');
-  }
+  ) {}
 
   async findById(id: string): Promise<Business | null> {
     return await this.businessRepo.findOneBy({ id });
@@ -79,13 +69,13 @@ export class BusinessService {
       ...createBusinessDto,
       employees: [],
       slots: [],
-      owner: foundUser,
       address: formattedAddress,
       slug: await this.generateUniqueSlug(createBusinessDto.name),
-      coords: coords,
     });
+    // Assigned after create(): create() deep-copies nested entities, and the
+    // copy would miss the id that saving `coords` below assigns.
+    newBusiness.coords = coords;
 
-    foundUser.business = newBusiness;
     // Admins keep their role; opening a business must not demote them.
     if (foundUser.role !== Role.Admin) {
       foundUser.role = Role.Business;
@@ -93,14 +83,16 @@ export class BusinessService {
     await this.dataSource.transaction(async (manager) => {
       await manager.save(coords);
       await manager.save(newBusiness);
+      // The link lives on users.businessId (owning side), so saving the user
+      // writes it.
+      foundUser.business = newBusiness;
       await manager.save(foundUser);
     });
-    // businessRepo.create() doesn't keep a reference to foundUser, so
-    // newBusiness.owner would otherwise still reflect the pre-update role.
-    // Copy the fields directly rather than assigning foundUser itself,
-    // since foundUser.business now points back at newBusiness and would
-    // create a circular reference the response can't be serialized with.
-    newBusiness.owner = { ...newBusiness.owner, role: foundUser.role };
+    // Return the owner without its back-reference: foundUser.business points
+    // at newBusiness, which would make the response circular.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { business: _business, ...owner } = foundUser;
+    newBusiness.owner = owner as Users;
     return newBusiness;
   }
 
@@ -227,22 +219,11 @@ export class BusinessService {
   private async getLocationFromAddress(
     address: string,
   ): Promise<{ coords: Location; formattedAddress: string }> {
-    const map: GeocodeResult = await this.googleMapsClient
-      .geocode({
-        params: {
-          address: address,
-          key: this.key,
-        },
-      })
-      .then((r: GeocodeResponse) => r.data.results[0]);
-
+    const { lat, lng, formattedAddress } =
+      await this.geocodingService.geocode(address);
     const location: Location = new Location();
-    location.lat = map.geometry.location.lat;
-    location.lng = map.geometry.location.lng;
-
-    return {
-      coords: location,
-      formattedAddress: map.formatted_address,
-    };
+    location.lat = lat;
+    location.lng = lng;
+    return { coords: location, formattedAddress };
   }
 }

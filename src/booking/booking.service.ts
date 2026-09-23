@@ -43,6 +43,12 @@ export class BookingService {
       throw new NotFoundException('Business not found');
     }
     const client: Users = await this.usersService.findActiveUser(user.sub);
+    const ownedBusiness = await this.businessService.findByOwnerId(client.id);
+    if (ownedBusiness?.id === business.id) {
+      throw new ForbiddenException(
+        'You cannot book a slot in your own business',
+      );
+    }
     const desiredDate = new Date(reserveSlotDto.reserveSlot);
     desiredDate.setSeconds(0, 0);
     if (desiredDate < new Date()) {
@@ -159,8 +165,10 @@ export class BookingService {
     if (!slot) {
       throw new NotFoundException('Slot not found');
     }
-    await this.slotManagementService.releaseSlot(slot);
-    await this.bookingRepository.remove(slotToCancel);
+    await this.dataSource.transaction(async (manager) => {
+      await this.slotManagementService.releaseSlot(slot, manager);
+      await manager.remove(slotToCancel);
+    });
     return {
       message: 'Your slot removed successfully',
     };

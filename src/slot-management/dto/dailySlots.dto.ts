@@ -1,4 +1,4 @@
-import { IsDate, MinDate, Matches } from 'class-validator';
+import { IsDate, Matches } from 'class-validator';
 import {
   CLOCK_TIME_MESSAGE,
   CLOCK_TIME_REGEX,
@@ -7,6 +7,7 @@ import {
 } from '../slot-management.constants';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { IsNotInPast } from '../../common/validators/is-not-in-past.validator';
 import { parseISO } from 'date-fns';
 
 export class DailySlotsDto {
@@ -41,7 +42,7 @@ export class DailySlotsDto {
 
   @ApiProperty({ type: String, description: 'Date in ISO format (yyyy-mm-dd)' })
   @IsDate()
-  @MinDate(new Date(), { message: 'Start date cannot be in the past.' })
+  @IsNotInPast()
   @Transform(({ value }) => parseISO(value), { toClassOnly: true })
   readonly startDate: Date;
 }

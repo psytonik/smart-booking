@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { addDays, addMinutes, endOfDay, format, startOfDay } from 'date-fns';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, EntityManager, Repository } from 'typeorm';
 import { Slot } from './entities/slot.entity';
 import { Business } from '../business/entities/business.entity';
 import { Users } from '../users/entities/user.entity';
@@ -52,10 +52,10 @@ export class SlotManagementService {
     return this.slotRepository.findOneBy({ booking_by: booking });
   }
 
-  async releaseSlot(slot: Slot): Promise<Slot> {
+  async releaseSlot(slot: Slot, manager?: EntityManager): Promise<Slot> {
     slot.status = SlotStatus.AVAILABLE;
     slot.booking_by = null;
-    return this.slotRepository.save(slot);
+    return manager ? manager.save(slot) : this.slotRepository.save(slot);
   }
 
   async setDailySlots(

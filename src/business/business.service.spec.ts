@@ -43,22 +43,16 @@ describe('BusinessService.openBusiness', () => {
     service = new BusinessService(
       businessRepo as any,
       { findActiveUser: jest.fn(async () => user) } as any,
-      { getOrThrow: () => 'key' } as any,
+      {
+        geocode: async () => ({
+          lat: 1,
+          lng: 2,
+          formattedAddress: 'Resolved address',
+        }),
+      } as any,
       {} as any,
       dataSource as any,
     );
-    (service as any).googleMapsClient = {
-      geocode: async () => ({
-        data: {
-          results: [
-            {
-              formatted_address: 'Resolved address',
-              geometry: { location: { lat: 1, lng: 2 } },
-            },
-          ],
-        },
-      }),
-    };
   });
 
   it('promotes a client and saves location, business and user together', async () => {
@@ -67,6 +61,12 @@ describe('BusinessService.openBusiness', () => {
     expect(business.slug).toBe('acme-barber');
     expect(user.role).toBe(Role.Business);
     expect(saved).toHaveLength(3);
+    expect(user.business).toBe(business);
+    // create() deep-copies nested entities; the business must reference the
+    // saved Location, not a copy without an id.
+    expect(business.coords).toBe(saved[0]);
+    expect(business.owner).toMatchObject({ id: 1, role: Role.Business });
+    expect(business.owner).not.toHaveProperty('business');
   });
 
   it('rejects a user who already owns a business', async () => {

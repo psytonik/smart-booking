@@ -48,6 +48,8 @@ Exit criteria: every item has a regression test (the start of B5). **✅ Done 20
 | 10 | B6 Booking validation / invariants | 26.7 | |
 | 11 | B5a Test harness + tenant-isolation and concurrent-booking tests | 20 | ⬆ Split out of B5 and pulled up: M3 needs a safety net |
 
+**✅ Done 2026-09-23.** C7 (config single source) was pulled in as well. Also: `GeocodingService` extracted from `BusinessService` (stubbable), `@types/nodemailer` moved to devDependencies.
+
 ### Milestone 3 — Scheduling core rework
 
 **Decision gate first:** settle the E1 question *"do slots belong to the business or to a specific employee?"* before starting. The answer changes the `Slot` model that B1 and B2 rewrite.
@@ -144,21 +146,25 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   Fix: `SlotStatus` becomes string values `available | booked | break | closed`; on update, drop old `break` slots and keep only `booked` ones; add a migration.
   Files: `src/slot-management/enums/slotStatus.enum.ts`, `src/slot-management/slot-management.service.ts`
 
-- [ ] **No migrations, and migration scripts write into `dist/`**
+- [x] **No migrations, and migration scripts write into `dist/`**
+  **Done (M2).** Migrations live in `src/migrations`; baseline `Init` generated from an empty DB. Verified run → revert → run, and a re-diff shows no drift. Scripts: `migration:run` / `:revert` / `:generate --name=` / `:create --name=`, plus `migration:run:prod` (no build) for containers. The Docker image applies pending migrations on start. Existing local DBs created with `schema:sync` must be recreated once.
   `migration:generate`/`create` output to `./dist/migrations`, which `nest build` wipes and git ignores. The only way to create the schema is `schema:sync`. You can't deploy safely like this.
   Fix: move to `src/migrations`; generate a baseline migration from the current entities; `migrationsRun` in deploy/CI; update the README.
   Files: `package.json`, `src/config/data-source.ts`, `README.md`
 
-- [ ] **Deployment infrastructure is a placeholder**
+- [x] **Deployment infrastructure is a placeholder**
+  **Done (M2).** Multi-stage `node:22-slim` Dockerfile (prod deps only, non-root `node` user, migrations then start) + `.dockerignore`. Compose: pg with `POSTGRES_DB`, named volumes, healthchecks, `redis:7-alpine` with optional `REDIS_PASSWORD`, and an `app` service behind the `app` profile. `.github/workflows/ci.yml`: lint → build → unit → e2e (pg + redis services) + docker build. Verified locally: image builds, container migrates, `/health` ok.
   `Dockerfile` is `ubuntu:latest` + `top -b` (the IDE default). `docker-compose.yml` has no app service, no `POSTGRES_DB`, no volumes (data is lost when the container is removed), and runs `redis` unpinned without a password. No CI at all.
   Fix: multi-stage Node Dockerfile (build, then a slim runtime, non-root user); compose with app + pg + redis, volumes and healthchecks; GitHub Actions running lint → build → unit → e2e (with pg/redis services).
 
 - [ ] **Tests: effectively zero**
+  **Partly done (M1 + M2, B5a).** 22 unit tests (auth guard, caller resolution, slot generation/validation, business/open). e2e harness (`test/utils`) boots the real `AppModule` against a dedicated `smart_booking_test` DB rebuilt from migrations, with Google/SMTP stubbed. 12 e2e tests: refresh-token misuse, rotation/reuse, health, tenant isolation (read/delete/edit/second business), concurrent booking (5 parallel → exactly one 201), cancel frees slot, owner self-booking, malformed time. The e2e run caught a regression in the M1 `business/open` change that the mocked unit test missed: `create()` deep-copies nested entities, so `coordsId` was never set. Fixed, and a regression assertion added. **Remaining (B5b, M3):** slot calculator tests for DST/timezones.
   No `*.spec.ts` under `src/`. The only e2e test calls `GET /` expecting `Hello World!`, a route that doesn't exist, so it's broken.
   Priority coverage: slot generation math (pure functions once extracted, see Phase C); tenant isolation (owner A vs B on every slot/business endpoint); concurrent `reserveSlot` (two parallel requests → exactly one 201); refresh-token rotation/reuse; the Phase A regressions.
   Files: `test/app.e2e-spec.ts`, new specs
 
-- [ ] **Booking input validation and invariants**
+- [x] **Booking input validation and invariants**
+  **Done (M2).** `reserveSlot` is `@IsISO8601({ strict: true })`; the owner can't book their own business (403); cancel releases the slot and deletes the booking in one transaction; `@MinDate(new Date())` is replaced by a per-request `@IsNotInPast()` (today allowed). **Deferred to E1:** blocking *employees* from booking their workplace (the employee feature doesn't exist yet).
   - `ReserveSlotDto.reserveSlot` is `@IsString()` but typed `Date`. `"garbage"` becomes `Invalid Date`, the past check passes (`NaN < now` is false), and the query receives an invalid date. Use `@IsISO8601()` plus a transform.
   - The business owner (or its employees) can book their own slots.
   - `cancelReservation` releases the slot and deletes the booking in two separate writes without a transaction.
@@ -173,7 +179,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   - The JWT role goes stale for up to 1h after `open business` or a role change. Either re-issue tokens on role change or read the role from the DB in `RolesGuard`.
   Files: `src/iam/**`
 
-- [ ] **HTTP surface for production**
+- [x] **HTTP surface for production**
+  **Done (M2).** `helmet` (CSP relaxed only while Swagger is on); CORS from `CORS_ORIGINS` (unset: any origin in dev, none in production); Swagger only outside production unless `SWAGGER_ENABLED=true`; `enableShutdownHooks()`; `/health` via `@nestjs/terminus` (pinned to v11: v12 is ESM-only and breaks Jest/CommonJS); port read from the app's `ConfigService`. Redis moved into a shared global `RedisModule` (`REDIS_CLIENT`), used by refresh-token storage and health, and ready for throttling/queues. Verified in the container: docs 404, security headers present, no CORS header for a foreign origin.
   `enableCors()` allows every origin; Swagger `/docs` is public in production; no `helmet`; `enableShutdownHooks()` isn't called, so `RefreshTokenIdsStorage.onApplicationShutdown` (Redis `quit`) never runs; no `/health` endpoint (`@nestjs/terminus`: pg + redis).
   `main.ts` builds a `new ConfigService()` at module scope to read `APP_PORT`. It only works because importing `data-source.ts` calls `dotenv.config()` first, and the Joi default `3000` never applies. Use `app.get(ConfigService)`.
   Files: `src/main.ts`
@@ -206,7 +213,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 - [ ] **Pagination and filters**
   `GET /users`, `GET /slots` (admin: every slot on the platform), `GET /business` and `POST /slots/report` return everything. Add `limit`/`cursor` and a max page size. `GET /booking/business/:id?page=` has no upper bound and doesn't 404 on an unknown business.
 
-- [ ] **Config: one source of truth**
+- [x] **Config: one source of truth**
+  **Done (M2, pulled forward: the e2e harness needed it).** The app uses `TypeOrmModule.forRootAsync` with the validated `ConfigService` and `autoLoadEntities`; `data-source.ts` is CLI-only. SQL logging only in `development` (or `DEBUG_SQL=1`).
   `data-source.ts` reads `process.env` + `dotenv` directly, bypassing the Joi-validated `ConfigService`. Use `TypeOrmModule.forRootAsync({ inject: [ConfigService] })` for the app; keep a thin `data-source.ts` for the CLI only.
 
 - [ ] **TypeScript strictness**
