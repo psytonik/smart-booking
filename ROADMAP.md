@@ -43,10 +43,11 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 - **Clients book a service with a master**, not a bare time slot. Services have their own durations (a haircut and a beard trim take different time), and they can differ per master.
 - **Masters control their own day.** Breaks are the master's decision, not something the system carves out. A master may decide to work through lunch if clients want that hour.
 - **Clients never pay in the app.** The platform earns from **business subscriptions**; the plans and billing model are still to be designed.
-- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow).
+- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow). Web itself is **two separate front-ends**: a **business admin/dashboard app** (owner/staff, behind auth) and a **marketing site** (public: landing pages, business discovery/public pages, pricing — SEO-driven, no auth). Each gets its own deploy pipeline and can move independently; they share only the API.
 - **Notifications:** email first; **WhatsApp / Telegram** (and push for the mobile app) later.
 - **"Smart"** refers to future intelligent features in the client app (e.g. suggestions, reminders).
 - **Every business gets an exclusive, AI-generated design for its page.**
+- **Languages:** English, French, Russian, Hebrew, Italian, Spanish, German. Arabic is a maybe — not yet decided whether to serve that user base.
 
 ### What this changes technically
 
@@ -63,6 +64,8 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 5. **Mobile-ready API**: versioned routes (`/v1`), because shipped apps can't be force-updated; device tokens for push; stable error format.
 6. **AI-designed business pages**: the AI produces a **design spec (JSON)**, not HTML: palette, typography, layout variant, section styles, copy, image references. Web and the mobile apps render it with their own components. Reasons: one spec renders natively on iOS/Android and web; no third-party HTML/JS (no XSS, no broken layouts); the spec can be validated before publishing (contrast, required blocks like the booking button); owners can pick between variants and tweak them; versions allow rollback. Generation runs as a background job on the existing queue; images need object storage (GCS).
 7. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
+8. **Localization**: EN, FR, RU, HE, IT, ES, DE at launch (AR undecided). Hebrew (and Arabic, if added) is RTL, which the client app, web, and the AI-generated design specs (item 6) all need to support from the start — retrofitting RTL into a layout system built LTR-only is expensive. API responses stay locale-agnostic (ISO codes, UTC timestamps); translated strings live in the clients, business-entered text (name, description) is stored as-is per business.
+9. **Web split in two:** a business admin/dashboard app and a public marketing site, as separate front-ends against the same API. Different concerns (auth'd app vs SEO'd public pages) and different release cadence — no reason to force them into one deploy. The AI-generated business page (item 6) is public and likely belongs to the marketing site, not the dashboard app.
 
 ## Priority plan (RICE, 2026-09-23)
 
@@ -357,6 +360,11 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   - Object storage (GCS) for logos, photos and generated images.
   - **To agree:** does the design also apply to the business screen in the client mobile app (recommended: yes, same spec)? Pick-from-variants vs one result + regenerate? AI-generated imagery or only the owner's photos? Is this a paid-plan feature (ties into G9)?
 - [ ] **G10 "Smart" client features.** Future: suggestions, reminders, rebooking. Out of scope until the core is live.
+- [ ] **G14 Localization.** UI translations for EN, FR, RU, HE, IT, ES, DE; RTL layout support (client app, web, AI design specs) for Hebrew, since it ships at launch. Arabic support undecided — hold off.
+- [ ] **G12 Business QR code.** Each business gets a generated QR code (its public page / booking link) that clients can scan to add the business to favorites in the client app.
+  - **To agree:** what the QR encodes (slug URL vs a deep link); static per business or regenerable; where it's surfaced (owner dashboard, printable asset, business page).
+- [ ] **G13 Public visibility as a paid tier.** By default a business is reachable only via its direct link/QR code (G12) — not in search, nearby search (F1), or any public directory. Public discoverability (search, directory, nearby) is a **paid upsell**, tied into subscriptions (G9). The platform doesn't ask why a business stays on the QR-only tier and doesn't distinguish based on registration/tax status — it's a plain visibility/pricing feature open to any business, which incidentally also suits low-profile operators (e.g. home-based) without the platform targeting or vetting that segment.
+  - **To agree:** which plan tier(s) include public visibility vs QR-only-by-default; whether reviews/ratings still show pre-upgrade; pricing; how this is worded in ToS/marketing (frame as a privacy/visibility feature, not aimed at unregistered businesses).
 
 ## Phase F — Product features: wanted, rules to be discussed
 
