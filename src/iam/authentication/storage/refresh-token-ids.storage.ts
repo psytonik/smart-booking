@@ -1,44 +1,42 @@
-import {
-  Injectable,
-  OnApplicationBootstrap,
-  OnApplicationShutdown,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
 
 export class InvalidatedRefreshTokenError extends Error {}
 
+/**
+ * One Redis key per refresh-token session, expiring with the token, so a
+ * user can be signed in on several devices and stale sessions clean up
+ * after themselves.
+ */
 @Injectable()
-export class RefreshTokenIdsStorage
-  implements OnApplicationBootstrap, OnApplicationShutdown
-{
-  private redisClient: Redis;
+export class RefreshTokenIdsStorage {
+  constructor(@Inject(REDIS_CLIENT) private readonly redisClient: Redis) {}
 
-  constructor(private readonly configService: ConfigService) {}
+  async insert(
+    userId: number,
+    tokenId: string,
+    ttlSeconds: number,
+  ): Promise<void> {
+    await this.redisClient.set(
+      this.getKey(userId, tokenId),
+      '1',
+      'EX',
+      ttlSeconds,
+    );
+  }
 
-  onApplicationBootstrap(): any {
-    this.redisClient = new Redis({
-      host: this.configService.get('REDIS_HOST', 'localhost'),
-      port: this.configService.get('REDIS_PORT', 6379),
-    });
-  }
-  onApplicationShutdown(signal?: string): any {
-    return this.redisClient.quit();
-  }
-
-  async insert(userId: number, tokenId: string): Promise<void> {
-    await this.redisClient.set(this.getKey(userId), tokenId);
-  }
   async validate(userId: number, tokenId: string): Promise<void> {
-    const storeId = await this.redisClient.get(this.getKey(userId));
-    if (storeId !== tokenId) {
+    if (!(await this.redisClient.exists(this.getKey(userId, tokenId)))) {
       throw new InvalidatedRefreshTokenError('');
     }
   }
-  async invalidate(userId: number): Promise<void> {
-    await this.redisClient.del(this.getKey(userId));
+
+  async invalidate(userId: number, tokenId: string): Promise<void> {
+    await this.redisClient.del(this.getKey(userId, tokenId));
   }
-  private getKey(userId: number): string {
-    return `user-${userId}`;
+
+  private getKey(userId: number, tokenId: string): string {
+    return `refresh:${userId}:${tokenId}`;
   }
 }

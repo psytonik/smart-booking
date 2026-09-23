@@ -6,6 +6,8 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Auth } from './decorator/auth.decorator';
 import { AuthType } from './enums/auth-type.enum';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { Serialize } from '../../common/serialization/serialize.decorator';
+import { UserResponseDto } from '../../users/dto/user-response.dto';
 
 @ApiTags('Authentication')
 @Auth(AuthType.None)
@@ -14,6 +16,7 @@ export class AuthenticationController {
   constructor(private readonly authService: AuthenticationService) {}
 
   @ApiOperation({ summary: 'Sign Up User' })
+  @Serialize(UserResponseDto)
   @Post('sign-up')
   async signUp(@Body() dto: SignUpDto) {
     return await this.authService.signUp(dto);
@@ -31,5 +34,12 @@ export class AuthenticationController {
   @Post('refresh-tokens')
   async refreshToken(@Body() refreshToken: RefreshTokenDto) {
     return await this.authService.refreshToken(refreshToken);
+  }
+
+  @ApiOperation({ summary: 'Log out: end the session of this refresh token' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('logout')
+  async logout(@Body() refreshToken: RefreshTokenDto): Promise<void> {
+    await this.authService.logout(refreshToken);
   }
 }

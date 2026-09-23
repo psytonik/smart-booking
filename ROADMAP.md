@@ -1,6 +1,291 @@
 # Roadmap
 
-Tracking issues from the 2026-08-26 backend + architecture code review. Ordered by priority; work top to bottom within each phase.
+Open work lives in the **2026-09-23 architecture review** section directly below. Everything after it is the closed history of the 2026-08-26 backend + architecture code review, kept for reference. Ordered by priority; work top to bottom within each phase.
+
+---
+
+# 2026-09-23 architecture review — open
+
+Full read of `src/`, infra and docs after the 2026-08-26 roadmap was closed. Product decisions taken during the review:
+
+- **International platform** → every business has its own timezone; all times stored as UTC (`timestamptz`).
+- **Employees** → finish the feature (not remove it).
+- **Google Calendar** → planned integration (keep the dependency, build it later).
+- **Nearby search, business-side cancellation, admin tools, booking limits** → wanted, but **scope and rules are still to be discussed** before implementation (see Phase F).
+
+## Priority plan (RICE, 2026-09-23)
+
+The Phases below group work by *type*. This plan orders it by *execution*: RICE score first, then adjusted for dependencies and launch-blocking risk. Work milestone by milestone.
+
+**How it was scored.** `RICE = Reach × Impact × Confidence / Effort`.
+- **Reach**: % of users/flows affected (0–100). The product is pre-launch, so this is exposure, not measured traffic.
+- **Impact**: massive 3 · high 2 · medium 1 · low 0.5 · minimal 0.25.
+- **Confidence**: high 100% · medium 80% · low 50%. Features whose rules are still under discussion get low confidence on purpose.
+- **Effort**: relative points. xs=1 (≤½ day) · s=3 (1–2 days) · m=5 (3–5 days) · l=8 (1–2 weeks) · xl=13.
+
+RICE ignores dependencies and treats a security hole like any other item, so four manual overrides are marked ⬆/⬇ below.
+
+### Milestone 1 — Security hotfix (launch blocker, ~1 week)
+
+| # | Task | RICE | Note |
+|---|---|---|---|
+| 1 | A1 Refresh token accepted as access token | **300** | Do first: impersonation |
+| 2 | A2 Resolve caller by `sub`, not email | 66.7 | Ship together with A1 (same root cause) |
+| 3 | A3 `weeksAhead` bug in weekly slots | 120 | |
+| 4 | A5 `DELETE /slots/:date` async + global admin wipe | 80 | |
+| 5 | A4 Slot input validation (DoS) | 66.7 | |
+| 6 | A6 `business/open` repeatable + non-unique slug | 26.7 | ⬆ Pulled up: data integrity, small |
+
+Exit criteria: every item has a regression test (the start of B5). **✅ Done 2026-09-23**, 22 unit tests (`npm test`); the e2e harness follows in B5a.
+
+### Milestone 2 — Deployable foundation
+
+| # | Task | RICE | Note |
+|---|---|---|---|
+| 7 | B3 Baseline migration, scripts moved to `src/migrations` | 66.7 | **Blocks** B1, B2, C4, F2 (they all change the schema) |
+| 8 | B4 Dockerfile + compose + CI | 40 | CI runs the M1 regression tests |
+| 9 | B8 HTTP surface (CORS, helmet, Swagger off in prod, `/health`, shutdown hooks) | 33.3 | |
+| 10 | B6 Booking validation / invariants | 26.7 | |
+| 11 | B5a Test harness + tenant-isolation and concurrent-booking tests | 20 | ⬆ Split out of B5 and pulled up: M3 needs a safety net |
+
+**✅ Done 2026-09-23.** C7 (config single source) was pulled in as well. Also: `GeocodingService` extracted from `BusinessService` (stubbable), `@types/nodemailer` moved to devDependencies.
+
+### Milestone 3 — Scheduling core rework
+
+**Decision gate first:** settle the E1 question *"do slots belong to the business or to a specific employee?"* before starting. The answer changes the `Slot` model that B1 and B2 rewrite.
+**Decided 2026-09-23: slots belong to a staff member** (owner or employee).
+
+| # | Task | RICE | Note |
+|---|---|---|---|
+| 12 | B1 UTC storage + per-business timezone | 30 | Biggest bet; needs a data migration |
+| 13 | B2 Split `SlotStatus` (available/booked/break/closed) | 20 | Same migration window as B1 |
+| 14 | C2 Split `SlotManagementService` (pure calculator + command/query) | 2.4 | ⬆ RICE is low, but it's the same code as B1/B2. Doing it separately means rewriting twice |
+| 15 | B5b Unit tests for the slot calculator (DST, odd durations, breaks) | — | Part of B5 |
+
+**✅ Done 2026-09-23.** Migration `StaffSlotsTimezones` converts existing data (status mapping, owner as staff, `timestamptz` assuming a UTC server); verified up → down → up with seeded old-shape rows and no drift. Also delivered the staff half of E1 (see there). Tests: 42 unit, 21 e2e.
+
+### Milestone 4 — Hardening before public launch
+
+| # | Task | RICE | Note |
+|---|---|---|---|
+| 16 | B7 Auth hardening (throttling, logout, per-session refresh with TTL, generic sign-in error) | 20 | |
+| 17 | C1 Response DTOs + `ClassSerializerInterceptor` | 20 | |
+| 18 | C5 Notifications queue (BullMQ) | 12.8 | **Blocks** E2 (Calendar sync goes through the queue) |
+| 19 | C6 Pagination | 8.3 | |
+| 20 | C4 Entity model cleanup | 4 | Do the booking-side FK part together with F2 |
+
+**✅ Done 2026-09-23** (C4's FK move is deferred to F2 as planned). Tests: 45 unit, 33 e2e.
+
+### Milestone 5 — Product features (after rules are agreed)
+
+Each feature needs its Phase E/F questions answered first. The order follows RICE; low confidence is what holds most of them back, so agreeing the rules is what moves them up.
+
+| # | Task | RICE | Depends on |
+|---|---|---|---|
+| 21 | F2 Business-side cancellation + booking history | 22.4 | B3, C4 |
+| 22 | F4 Booking limits | 10 | Rules agreed |
+| 23 | F1 Nearby search | 8.75 | Decide PostGIS or plain lat/lng |
+| 24 | E1 Employees | 6.25 | M3 decision gate |
+| 25 | E2 Google Calendar | 2.5 | C5, E1 |
+| 26 | F3 Admin tools | 0.8 | ⬇ Few users, but admin **seeding** (not the full UI) may need to move up to launch |
+
+### Continuous — about 20% of capacity, alongside the milestones
+
+C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) · C8 TS strictness per module (3) · C3 admin branches (2.5; fixed for free inside C2) · D cleanup bundle (1.25).
+
+**✅ All done 2026-09-23** (C7 in M2, C3 in M3, C8/C9/D in the cleanup pass).
+
+### Sensitivity check
+
+- If B1 (timezones) turns out 2× bigger (l → xl), its RICE drops to about 18. It still belongs in M3, because every day of real bookings stored in server-local time makes the migration harder.
+- If F2's rules are agreed quickly (confidence medium → high), its RICE rises to 28 and it can move up into M4.
+- Nothing in M1 changes rank under a 2× estimate error.
+
+## Phase A — Critical (security / data integrity)
+
+- [x] **Refresh token is accepted as an access token → wrong-user impersonation**
+  **Done (M1).** Reproduced first: a client's refresh token on `GET /booking/slots` returned the admin's bookings. Tokens now carry `type: access|refresh` (`TokenType`); `AccessTokenGuard` verifies with explicit secret/audience/issuer and rejects anything that isn't `access`; `/refresh-tokens` rejects anything that isn't `refresh`. Tokens issued before the fix have no `type` and are rejected, so users must sign in again once. Verified live: refresh token as Bearer → 401, access token on refresh endpoint → 401, normal rotation → 200. Tests: `access-token.guard.spec.ts`.
+  Access and refresh tokens are signed with the same secret/audience/issuer, and `AccessTokenGuard` verifies with `this.jwtConfiguration` without checking what kind of token it got. A refresh token (`{ sub, refreshTokenId }`, 24h TTL) passes the guard, so `request.user.email` is `undefined`. Every service then resolves the caller with `usersService.findByEmail(user.email)` → `findOneBy({ email: undefined })`. TypeORM 0.3 drops `undefined` where-conditions, so the query returns **the first row of `users`**, which may be the admin. Endpoints without `@Roles` (`POST /booking/:businessId`, `GET /booking/slots`, `POST /business/open`, …) then run as that user.
+  Fix: add a `type: 'access' | 'refresh'` claim (or separate secrets) and reject refresh tokens in `AccessTokenGuard`. Resolve the caller by `sub` (the user id), never by email (see next item). Add an e2e test that sends a refresh token as a Bearer token.
+  Files: `src/iam/authentication/guards/access-token.guard.ts`, `src/iam/authentication/authentication.service.ts`
+
+- [x] **Caller identity resolved by email instead of `sub`, and a missing user isn't handled**
+  **Done (M1).** `UsersService.findActiveUser(sub)` replaces `findByEmail` everywhere; a missing id is never queried and a deleted user gets 401. Dead `if (!user)` branches and the unused `findByEmail`/`save` removed. Tests: `users.service.spec.ts`.
+  `findByEmail(user.email)` appears in business, slot and booking services. Email is mutable and not the JWT subject. `strictNullChecks: false` hides the `null` case: a deleted user reaches `user.role` and gets a 500. Add `UsersService.findByIdOrFail(sub)` and use it everywhere, or load the user once in a guard/interceptor.
+  Files: `src/business/business.service.ts`, `src/slot-management/slot-management.service.ts`, `src/booking/booking.service.ts`
+
+- [x] **`POST /slots/weekly` ignores `weeksAhead` → duplicate slots / 500**
+  **Done (M1).** Days are generated as `firstDay + offset` over `weeksAhead * 7` days and filtered by work days. `setWorkDays` is validated with `@IsIn`, `weeksAhead` is `@IsInt @Min(1) @Max(12)`. `setHolidays` now means **specific ISO dates to skip** (`yyyy-mm-dd`). It was previously accepted and ignored, so clients sending day names now get 400. A day is scheduled as a whole: a request touching a day that already has slots returns 409 listing those dates (one query for the whole range, replacing one query per slot). All slots are saved in one transaction. Verified live: 3 weeks Mon/Wed with one holiday → 5 distinct days, 10 slots.
+  The `i` loop never shifts the date by `i * 7` days. Every "week" generates the same dates, and `@Unique(['business','start_time'])` turns any `weeksAhead > 1` into a 500. `setWorkDays` isn't validated either (an unknown day gives `indexOf = -1` and a nonsense date), `setHolidays` is accepted but ignored, and `weeksAhead` has no upper bound.
+  Fix: `addWeeks(date, i)`; `@IsIn(DAYS, { each: true })`; `@Min(1) @Max(12)` (or a similar limit) on `weeksAhead`; implement `setHolidays` or remove it; run `checkExistingSlotsForDay` as the daily path does. Do the whole batch in one transaction.
+  Files: `src/slot-management/slot-management.service.ts`, `src/slot-management/dto/weeklySlots.dto.ts`
+
+- [x] **Slot-generation input is unvalidated → DoS and silently wrong schedules**
+  **Done (M1).** DTOs validate `HH:mm` and `N min` with `@Matches`; the formats are unchanged, so existing clients keep working. The new `buildSchedule()` works in minutes (half-hours supported), requires 5–480 min per client, closing after opening, and lunch shorter than the day, and floors the slot count so no slot runs past closing. `PATCH /slots/:date` validates *before* deleting existing slots. Verified live: `0 min` → 400, `09:30`–`17:00` at 45 min → 10 slots ending 17:00. Tests: `slot-management.service.spec.ts`.
+  - `timePerClient: "0 min"` gives `totalSlots = Infinity`, and the loop in `createSlots` never ends (memory/CPU DoS by any business user).
+  - `parseTime` keeps only the hour: `"09:30"` becomes 9:00, so opening/closing on half-hours is impossible.
+  - A duration that doesn't divide the day (e.g. 45 min over 8h) gives a fractional `totalSlots`, so the last slot runs past closing time.
+  - `closingHours <= openingHours` or `lunchDuration > workday` isn't rejected.
+  Fix: DTOs take `HH:mm` (`@Matches`) and integer minutes (`@IsInt @Min(5) @Max(480)`); validate the relations between them in the service; `Math.floor` the slot count.
+  Files: `src/slot-management/dto/*.ts`, `src/slot-management/slot-management.service.ts`
+
+- [x] **`DELETE /slots/:date` deletes asynchronously and, for admins, globally**
+  **Done (M1).** One awaited `DELETE … WHERE business = own AND status = AVAILABLE AND day`, always scoped to the caller's own business (admins included; an explicit admin override belongs to C3). Invalid date → 400. Verified live with two businesses: an admin without a business deletes nothing, and an owner deletes only their own free slots.
+  `datesToDelete.filter(async …)` fires `remove()` calls without awaiting them. The endpoint returns 204 before anything is deleted, and errors become unhandled rejections. Also, for `admin`, `getOpenedSlotByDay` returns **every business's** slots for that date, so an admin call wipes the whole platform's free slots for that day.
+  Fix: one `DELETE … WHERE business = :id AND status = AVAILABLE AND start_time BETWEEN …`, awaited; an admin must pass an explicit `businessId`.
+  Files: `src/slot-management/slot-management.service.ts`
+
+- [x] **`POST /business/open` can be repeated and demotes admins**
+  **Done (M1).** A second business → 409; employees → 403; admins keep their role. `slug` is `UNIQUE`, with `-2`, `-3` suffixes on collision (on create and on rename). Location, business and user are saved in one transaction; geocoding no longer writes a `Location` before the business exists. Not verified live: the local Google API key returns 403. Covered by `business.service.spec.ts`.
+  No check that the user already owns a business: a second call creates a new business and overwrites `users.businessId`, leaving the first one orphaned. Any role can call it, and it sets `role = business`, so an admin (or employee) who opens a business loses their role. `slug` has no unique constraint, so two businesses with the same name get the same slug and `GET /business/:slug` returns an arbitrary one (rename via `PATCH` has the same problem).
+  Fix: reject if the user already owns a business; don't downgrade admins; `@Unique` on `slug` plus a suffix on collision; wrap location + business + user updates in one transaction.
+  Files: `src/business/business.service.ts`, `src/business/entities/business.entity.ts`
+
+## Phase B — High (correctness / production readiness)
+
+- [x] **Timezones: move to UTC storage with a per-business timezone** *(decided: international platform)*
+  **Done (M3).** `Business.timezone` (IANA, `@IsTimeZone`, required on create; not editable yet, since existing slots would shift). `slot.start_time/end_time` and `booking.book_slot` are `timestamptz`. Slot generation, day ranges, "not in the past" checks and reports all work in the business timezone via `@date-fns/tz`, with per-slot wall-clock times so openings stay local on DST days. `reserveSlot` without an offset is local business time; with an offset it's absolute. Emails format times in the business timezone. Verified server-TZ independent: unit and e2e suites pass with `TZ=Pacific/Auckland`.
+  Slots are `timestamp without time zone` and are generated with `setHours` in the **server's** local TZ. `new Date('2026-09-25')` parses as UTC midnight, then `setHours` applies local time, so the result depends on where the server runs. Notification emails print `Date.toString()` in server time.
+  Fix: `Business.timezone` (IANA, e.g. `Europe/Berlin`); all columns become `timestamptz`; generate slots with `date-fns-tz` (`fromZonedTime`) in the business TZ, which also handles DST days; API accepts/returns ISO-8601 with offset; emails format in the business TZ. Needs a data migration.
+  Files: `src/slot-management/**`, `src/booking/**`, `src/business/entities/business.entity.ts`
+
+- [x] **One `UNAVAILABLE` status means both "booked" and "lunch break"**
+  **Done (M3).** `SlotStatus` = `available | booked | break` (string enum). PATCH keeps `booked` slots, regenerates free slots and breaks around them, all in one transaction. DELETE (close day) removes free slots and breaks and leaves bookings. `closed` was left out until something needs it.
+  `checkSlotsExistenceByDate` uses "any UNAVAILABLE slot exists" as "this day is already scheduled", which only works because every generated day contains lunch slots. `updateDailySlots` keeps *all* UNAVAILABLE slots, so the old lunch break stays forever when hours change and a new one is added. Reports can't tell breaks from bookings either. The enum is numeric (`0/1`) and stored in a PG enum as `'0'/'1'`, which is fragile.
+  Fix: `SlotStatus` becomes string values `available | booked | break | closed`; on update, drop old `break` slots and keep only `booked` ones; add a migration.
+  Files: `src/slot-management/enums/slotStatus.enum.ts`, `src/slot-management/slot-management.service.ts`
+
+- [x] **No migrations, and migration scripts write into `dist/`**
+  **Done (M2).** Migrations live in `src/migrations`; baseline `Init` generated from an empty DB. Verified run → revert → run, and a re-diff shows no drift. Scripts: `migration:run` / `:revert` / `:generate --name=` / `:create --name=`, plus `migration:run:prod` (no build) for containers. The Docker image applies pending migrations on start. Existing local DBs created with `schema:sync` must be recreated once.
+  `migration:generate`/`create` output to `./dist/migrations`, which `nest build` wipes and git ignores. The only way to create the schema is `schema:sync`. You can't deploy safely like this.
+  Fix: move to `src/migrations`; generate a baseline migration from the current entities; `migrationsRun` in deploy/CI; update the README.
+  Files: `package.json`, `src/config/data-source.ts`, `README.md`
+
+- [x] **Deployment infrastructure is a placeholder**
+  **Done (M2).** Multi-stage `node:22-slim` Dockerfile (prod deps only, non-root `node` user, migrations then start) + `.dockerignore`. Compose: pg with `POSTGRES_DB`, named volumes, healthchecks, `redis:7-alpine` with optional `REDIS_PASSWORD`, and an `app` service behind the `app` profile. `.github/workflows/ci.yml`: lint → build → unit → e2e (pg + redis services) + docker build. Verified locally: image builds, container migrates, `/health` ok.
+  `Dockerfile` is `ubuntu:latest` + `top -b` (the IDE default). `docker-compose.yml` has no app service, no `POSTGRES_DB`, no volumes (data is lost when the container is removed), and runs `redis` unpinned without a password. No CI at all.
+  Fix: multi-stage Node Dockerfile (build, then a slim runtime, non-root user); compose with app + pg + redis, volumes and healthchecks; GitHub Actions running lint → build → unit → e2e (with pg/redis services).
+
+- [ ] **Tests: effectively zero**
+  **Partly done (M1 + M2, B5a).** 22 unit tests (auth guard, caller resolution, slot generation/validation, business/open). e2e harness (`test/utils`) boots the real `AppModule` against a dedicated `smart_booking_test` DB rebuilt from migrations, with Google/SMTP stubbed. 12 e2e tests: refresh-token misuse, rotation/reuse, health, tenant isolation (read/delete/edit/second business), concurrent booking (5 parallel → exactly one 201), cancel frees slot, owner self-booking, malformed time. The e2e run caught a regression in the M1 `business/open` change that the mocked unit test missed: `create()` deep-copies nested entities, so `coordsId` was never set. Fixed, and a regression assertion added. **Remaining (B5b, M3):** slot calculator tests for DST/timezones.
+  No `*.spec.ts` under `src/`. The only e2e test calls `GET /` expecting `Hello World!`, a route that doesn't exist, so it's broken.
+  Priority coverage: slot generation math (pure functions once extracted, see Phase C); tenant isolation (owner A vs B on every slot/business endpoint); concurrent `reserveSlot` (two parallel requests → exactly one 201); refresh-token rotation/reuse; the Phase A regressions.
+  Files: `test/app.e2e-spec.ts`, new specs
+
+- [x] **Booking input validation and invariants**
+  **Done (M2).** `reserveSlot` is `@IsISO8601({ strict: true })`; the owner can't book their own business (403); cancel releases the slot and deletes the booking in one transaction; `@MinDate(new Date())` is replaced by a per-request `@IsNotInPast()` (today allowed). **Deferred to E1:** blocking *employees* from booking their workplace (the employee feature doesn't exist yet).
+  - `ReserveSlotDto.reserveSlot` is `@IsString()` but typed `Date`. `"garbage"` becomes `Invalid Date`, the past check passes (`NaN < now` is false), and the query receives an invalid date. Use `@IsISO8601()` plus a transform.
+  - The business owner (or its employees) can book their own slots.
+  - `cancelReservation` releases the slot and deletes the booking in two separate writes without a transaction.
+  - `DailySlotsDto`/`WeeklySlotsDto` `@MinDate(new Date())` is evaluated **once at module load**, so the "not in the past" check goes stale the longer the process runs. Check in the service (or with a custom validator) instead.
+  Files: `src/booking/**`, `src/slot-management/dto/*.ts`
+
+- [x] **Auth hardening**
+  **Done (M4).** `@nestjs/throttler` with Redis storage: global limit plus a stricter `auth` limit on `/authentication/*` (`THROTTLE_*`, `AUTH_THROTTLE_LIMIT`, `TRUST_PROXY`). Sign-in returns one message for unknown email and wrong password, and runs a bcrypt compare in both cases. Refresh sessions are keyed `refresh:<user>:<tokenId>` with `EX = refreshTtl`, so several devices work at once and keys expire. `POST /authentication/logout` ends one session. `RolesGuard` reads the current role from the DB, which fixes the stale-JWT-role problem. e2e: generic error, two-device logout, role change without re-login, 429 after the auth limit.
+  - No rate limiting on `/authentication/*`, so sign-in can be brute-forced. Add `@nestjs/throttler`, backed by Redis storage.
+  - Sign-in reveals whether an email exists (`User does not exists` vs `Password does not match`). Return one generic message.
+  - Refresh-token Redis key is `user-${id}` with no TTL: one session per user (logging in on phone logs out laptop) and keys never expire. Use key `user-${id}:${tokenId}` with `EX = refreshTtl`.
+  - No logout endpoint (refresh-token revocation).
+  - The JWT role goes stale for up to 1h after `open business` or a role change. (Also bites employees once E1 lets owners add them.) Either re-issue tokens on role change or read the role from the DB in `RolesGuard`.
+  Files: `src/iam/**`
+
+- [x] **HTTP surface for production**
+  **Done (M2).** `helmet` (CSP relaxed only while Swagger is on); CORS from `CORS_ORIGINS` (unset: any origin in dev, none in production); Swagger only outside production unless `SWAGGER_ENABLED=true`; `enableShutdownHooks()`; `/health` via `@nestjs/terminus` (pinned to v11: v12 is ESM-only and breaks Jest/CommonJS); port read from the app's `ConfigService`. Redis moved into a shared global `RedisModule` (`REDIS_CLIENT`), used by refresh-token storage and health, and ready for throttling/queues. Verified in the container: docs 404, security headers present, no CORS header for a foreign origin.
+  `enableCors()` allows every origin; Swagger `/docs` is public in production; no `helmet`; `enableShutdownHooks()` isn't called, so `RefreshTokenIdsStorage.onApplicationShutdown` (Redis `quit`) never runs; no `/health` endpoint (`@nestjs/terminus`: pg + redis).
+  `main.ts` builds a `new ConfigService()` at module scope to read `APP_PORT`. It only works because importing `data-source.ts` calls `dotenv.config()` first, and the Joi default `3000` never applies. Use `app.get(ConfigService)`.
+  Files: `src/main.ts`
+
+## Phase C — Medium (architecture / maintainability)
+
+- [x] **Response DTOs instead of raw entities**
+  **Done (M4).** `@Serialize(Dto)` (interceptor + `@ApiOkResponse`) on every endpoint returning data, with `excludeExtraneousValues`: users, businesses (public fields; owner only on open), slots (staff view with client email; public view with `staffId` only), bookings (id + time; details add business summary and slot), report. e2e asserts exact key sets and that no `password`/`information` appears in slot listings.
+  Controllers return TypeORM entities (`Booking` with `user` and `business`, `Slot` with `booking.user`, the `openBusiness` response with the full owner). The only thing keeping the password hash out is `select: false`; the next `addSelect` or relation leaks it again. Add `ClassSerializerInterceptor` globally plus per-endpoint response DTOs (`@Expose` whitelist), and document them in Swagger (`@ApiOkResponse({ type })`).
+
+- [x] **Split `SlotManagementService` (377 lines, 32 imports)**
+  **Done (M3).** `slot-schedule.ts` (pure calculator, 19 tests incl. DST) · `SlotAccessService` (who manages which business and which staff) · `SlotCommandService` (create/update/close, transactional) · `SlotQueryService` (reads, report, public availability). The old service is removed.
+  - `SlotScheduleCalculator`: pure, framework-free (hours, breaks, TZ → slot intervals). Unit-testable without a DB.
+  - `SlotCommandService`: create/update/close in transactions.
+  - `SlotQueryService`: reads, reports, public availability.
+  - Put the repeated `findUser` → `getBusinessByOwner` preamble (present in almost every method) in one place: a guard/decorator that resolves `BusinessContext { user, business, isAdmin }`.
+
+- [x] **Admin branches are inconsistent**
+  **Done (M3, inside C2).** One rule: admins get no implicit access to other businesses' slots; they manage only a business they own. Global admin views come back deliberately with F3.
+  `findAllSlots` calls `getBusinessByOwner` *before* the admin check, so an admin without a business gets 400 and the admin branch is unreachable. Elsewhere admins get global access implicitly. Pick one model: admin endpoints take an explicit `businessId`.
+  Files: `src/slot-management/slot-management.service.ts`
+
+- [ ] **Entity model cleanup**
+  **Mostly done (M4).** `Business.bookings` inverse added (`Booking.business` no longer points at `slots`); `users.role` is a Postgres enum (migration `UserRoleEnum`, values preserved); an address change replaces the `Location` and deletes the old one in one transaction, and an unresolvable address now returns 400 like on create. The `book_slot`/`business` duplication is kept on purpose as a history snapshot (documented on the entity). **Remaining, with F2:** move the slot↔booking FK to the booking side.
+  - `Booking.business` has its inverse set to `business.slots` (a `Slot[]`). It needs `Business.bookings: Booking[]`.
+  - `Booking.book_slot` and `Booking.business` duplicate `slot.start_time` and `slot.business`. Keep them only if intentional (history snapshot), otherwise derive them.
+  - The FK sits on the slot side (`slot.booking_byId`). With cancellation history (Phase F) it's better on the booking side (`booking.slotId`, with a partial unique index `WHERE status = 'active'`).
+  - `Users.role` is `@Column({ enum })` without `type: 'enum'`, so it's stored as plain varchar with no DB constraint.
+  - Updating a business address creates a new `Location` and leaves the old one orphaned. A geocoding failure on update is only `console.error`'d and the request returns 200 without changing the address (create returns 400 in the same case).
+
+- [x] **Notifications: move out of the request path**
+  **Done (M4).** `@nestjs/bullmq` (v11, CJS) queue `notifications`: `NotificationsService.send` enqueues, and `NotificationsProcessor` sends through `EmailSender` with 6 attempts and exponential backoff (30s…). Booking only enqueues; a queue failure is logged, never a 500. Verified live: booking answered in ~10ms, worker logged attempt 1/6 with the local invalid OAuth creds and kept the job for retry. Not done: a DB outbox (a crash between commit and enqueue loses that email). Add one if email delivery becomes critical.
+  Two emails go out sequentially inside `reserveSlot`: they add latency, a failure is only logged, and there's no retry. Redis is already in the stack, so a queue (BullMQ via `@nestjs/bullmq`) with retries and an outbox record would fix this. This is also where cancellation emails and the future Google Calendar sync belong.
+
+- [x] **Pagination and filters**
+  **Done (M4).** `PaginationQueryDto` (`limit` 1–100, default 50; `offset`) on `GET /users`, `GET /business`, `GET /slots`, `GET /booking/slots`, `POST /slots/report` (report `totalSlots` is now the full count, not the page length). Public availability is bounded to 7-day pages with `page` 1–52.
+  `GET /users`, `GET /slots` (admin: every slot on the platform), `GET /business` and `POST /slots/report` return everything. Add `limit`/`cursor` and a max page size. `GET /booking/business/:id?page=` has no upper bound and doesn't 404 on an unknown business.
+
+- [x] **Config: one source of truth**
+  **Done (M2, pulled forward: the e2e harness needed it).** The app uses `TypeOrmModule.forRootAsync` with the validated `ConfigService` and `autoLoadEntities`; `data-source.ts` is CLI-only. SQL logging only in `development` (or `DEBUG_SQL=1`).
+  `data-source.ts` reads `process.env` + `dotenv` directly, bypassing the Joi-validated `ConfigService`. Use `TypeOrmModule.forRootAsync({ inject: [ConfigService] })` for the app; keep a thin `data-source.ts` for the CLI only.
+
+- [x] **TypeScript strictness**
+  **Done.** `"strict": true` project-wide (instead of per module: only 23 errors once measured), with `strictPropertyInitialization` off because TypeORM/class-transformer populate entities and DTOs. Added `@types/compression` and `@types/pg`, plus an `errorMessage()` helper for `unknown` catch values.
+  `strictNullChecks: false` and `noImplicitAny: false` hide exactly the class of bugs found above (null users, untyped `reportDate`, `currentUser`, `day`, `id`). Enable them step by step (per module).
+
+- [x] **Update `ARCHITECTURE.md`**
+  **Done.** Rewritten for the current code: modules and ownership, data model (staff, timezone, statuses), design decisions (time, tenancy, auth, consistency, output), booking flow with the queue, and testing.
+  It still describes the pre-fix state: dashed "reaches into" arrows, `eager: true` on `Business`, a booking flow with no transaction, and a "Known issues" section that is closed. Sync it with the code.
+
+## Phase D — Low (cleanup)
+
+- [x] Dead code: `CreateUserDto` (empty), `NotifyEmailDto` (unused). Keep `repl.ts` but document it (it's currently the only way to create an admin).
+  **Done.** Both removed. `repl.ts` is documented and runnable via `npm run repl`. The documented command was broken (`UserRepository` → the real token is `UsersRepository`, verified).
+- [x] `@types/nodemailer` is in `dependencies`; move it to `devDependencies`.
+  **Done (M2).**
+- [x] `closeOpenedSlotsByDate` calls `findUser` twice (directly and inside `getOpenedSlotByDay`).
+  **Done (M1/M3)**, replaced by `closeDay`.
+- [x] `setDailySlots`: `new Date(x) || startOfToday()`. A `Date` object is always truthy, so the fallback is dead code.
+  **Done (M1)**, removed.
+- [x] Error messages use informal wording ("It is not your business dude", "Dude you can update past dates !"; the latter also says the opposite of what it means). Use neutral, consistent messages.
+  **Done.** No informal messages left; wording made consistent.
+- [x] String literal `user.role == 'admin'` → `Role.Admin`; `==` → `===`.
+  **Done (M3)**, the code is gone.
+- [x] `RolesGuard` crashes if a route has `@Roles` together with `@Auth(AuthType.None)` (`user` is undefined). Guard against it.
+  **Done (M4)**, returns 401.
+
+## Phase E — Features to finish (decided)
+
+- [ ] **Employees** *(decided: finish)*
+  **Partly done (M3):** slots belong to a staff member (`Slot.staff`, unique `(staff, start_time)`); owners manage any staff's slots via `staffId`; employees resolve to their workplace and manage/see only their own; clients can book a chosen staff member or anyone free; staff can't book their own business. **Remaining:** owner endpoints to invite/add/remove employees (the e2e tests assign employees via SQL for now), and staff display names for the public availability API.
+  Currently: the `Employee` role, `Users.workplace` and `Business.employees` exist, and `/slots` lists `Role.Employee`. But there's no way to add an employee, and `getBusinessByOwner` returns 400 for them.
+  To do: owner endpoints to invite/add/remove employees (invite by email, or attach an existing user); resolve an employee's business through `workplace`; define what an employee may do (manage slots: yes; edit business / manage staff: no).
+  **To discuss:** whether slots belong to the business or to a specific employee (per-staff calendars: "book with Anna at 14:00"). That changes the `Slot` model (`staffId`, unique `(staff, start_time)`), so decide it before building.
+
+- [ ] **Google Calendar integration** *(decided: planned)*
+  `@googleapis/calendar` is installed but unused.
+  To do: OAuth connection per business (and optionally per employee); create/update/delete a calendar event when a booking is created or cancelled (through the notification queue from Phase C); store tokens encrypted.
+  **To discuss:** one-way push or two-way sync (block slots that are busy in Google Calendar); whether clients also get an event / `.ics` attachment.
+
+## Phase F — Product features: wanted, rules to be discussed
+
+These are confirmed as wanted, but **requirements have to be agreed before implementation**. Each item lists the questions to settle first.
+
+- [ ] **Nearby business search.** Coordinates are geocoded and stored in `Location` but never used.
+  Discuss: search radius and sorting, filters (category, availability today), whether to switch to PostGIS (`geography(Point)` + GiST index) or keep lat/lng with a bounding-box query, and categories/tags for businesses.
+
+- [ ] **Business-side cancellation plus booking history.** Today only the client can cancel, and cancelling hard-deletes the booking (the report loses it).
+  Discuss: `Booking.status` (`active | cancelled_by_client | cancelled_by_business | completed | no_show`) instead of delete; required reason; client notification; cancellation window/policy for clients (e.g. not later than N hours before).
+
+- [ ] **Admin tools.** An admin can only be created through the REPL, and `Business.featured` has no write path.
+  Discuss: admin seeding (env/CLI), endpoints (manage users/roles, block a business, set featured), audit log of admin actions.
+
+- [ ] **Booking limits.** One client can currently book every slot of a business.
+  Discuss: maximum active bookings per client (per business / globally), minimum lead time before a slot, how far ahead booking is allowed, whether owners configure these per business.
 
 ## Phase 1 — Critical (exploitable now)
 

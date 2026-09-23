@@ -1,0 +1,149 @@
+import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import * as request from 'supertest';
+import { DataSource } from 'typeorm';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../src/redis/redis.constants';
+import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
+import { GeocodingService } from '../../src/business/geocoding.service';
+import { NotificationsService } from '../../src/notifications/notifications.service';
+
+export const PASSWORD = 'password123';
+
+export interface Tokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/** Boots the real AppModule with external services (Google, SMTP) stubbed. */
+export async function createTestApp(): Promise<INestApplication> {
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(GeocodingService)
+    .useValue({
+      geocode: async (address: string) => {
+        if (address.includes('nowhere')) {
+          throw new Error('address not found');
+        }
+        return { lat: 32.08, lng: 34.78, formattedAddress: address };
+      },
+    })
+    .overrideProvider(NotificationsService)
+    .useValue({ send: jest.fn() })
+    .compile();
+
+  const app = moduleRef.createNestApplication();
+  configureApp(app);
+  // Listen up front: supertest otherwise starts the server per request,
+  // which races when tests fire requests in parallel.
+  await app.listen(0);
+  return app;
+}
+
+export async function resetDatabase(app: INestApplication): Promise<void> {
+  await app.get<Redis>(REDIS_CLIENT).flushdb();
+  await app
+    .get(DataSource)
+    .query(
+      'TRUNCATE users, business, location, slot, booking RESTART IDENTITY CASCADE',
+    );
+}
+
+export async function signUp(
+  app: INestApplication,
+  email: string,
+): Promise<Tokens> {
+  await request(app.getHttpServer())
+    .post('/authentication/sign-up')
+    .send({ email, password: PASSWORD })
+    .expect(201);
+  return signIn(app, email);
+}
+
+export async function signIn(
+  app: INestApplication,
+  email: string,
+): Promise<Tokens> {
+  const res = await request(app.getHttpServer())
+    .post('/authentication/sign-in')
+    .send({ email, password: PASSWORD })
+    .expect(200);
+  return res.body;
+}
+
+/**
+ * Signs up a user, opens a business for them and signs in again so the
+ * access token carries the new `business` role.
+ */
+export async function createOwner(
+  app: INestApplication,
+  email: string,
+  businessName: string,
+  timezone = 'Europe/Berlin',
+): Promise<{
+  tokens: Tokens;
+  businessId: string;
+  slug: string;
+  userId: number;
+}> {
+  const { accessToken } = await signUp(app, email);
+  const res = await request(app.getHttpServer())
+    .post('/business/open')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      name: businessName,
+      description: 'e2e',
+      address: `${businessName} street 1`,
+      email,
+      phone_number: '000',
+      timezone,
+    })
+    .expect(201);
+  return {
+    tokens: await signIn(app, email),
+    businessId: res.body.id,
+    slug: res.body.slug,
+    userId: res.body.owner.id,
+  };
+}
+
+/**
+ * Makes an existing user an employee of a business. There is no API for this
+ * yet (roadmap E1), so it goes straight to the database.
+ */
+export async function makeEmployee(
+  app: INestApplication,
+  email: string,
+  businessId: string,
+): Promise<{ tokens: Tokens; userId: number }> {
+  await signUp(app, email);
+  // For UPDATE ... RETURNING, TypeORM's postgres driver returns [rows, count].
+  const [rows] = await app
+    .get(DataSource)
+    .query(
+      `UPDATE users SET role = 'employee', "workplaceId" = $1 WHERE email = $2 RETURNING id`,
+      [businessId, email],
+    );
+  // Sign in again so the access token carries the employee role.
+  return { tokens: await signIn(app, email), userId: rows[0].id };
+}
+
+/** The parts of a slot response the tests look at. */
+export interface SlotBody {
+  status: string;
+  start_time: string;
+  staff: { id: number };
+}
+
+export const bearer = (tokens: Tokens) => `Bearer ${tokens.accessToken}`;
+
+/** A Monday far enough ahead to never be in the past. */
+export const FUTURE_DAY = '2030-01-07';
+
+export const DAILY_SCHEDULE = {
+  openingHours: '09:00',
+  closingHours: '12:00',
+  lunchDuration: '0 min',
+  timePerClient: '60 min',
+  startDate: FUTURE_DAY,
+};

@@ -9,6 +9,7 @@ import {
 import { Users } from '../../users/entities/user.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
 import { Location } from './location.entity';
+import { Booking } from '../../booking/entities/booking.entity';
 
 @Entity()
 export class Business {
@@ -18,7 +19,7 @@ export class Business {
   @Column()
   name: string;
 
-  @Column()
+  @Column({ unique: true })
   slug: string;
 
   @Column()
@@ -26,6 +27,10 @@ export class Business {
 
   @Column('text')
   address: string;
+
+  /** IANA timezone (e.g. `Europe/Berlin`); working hours are local to it. */
+  @Column({ default: 'UTC' })
+  timezone: string;
 
   @OneToOne(() => Location, (location: Location) => location.business)
   @JoinColumn()
@@ -45,6 +50,9 @@ export class Business {
 
   @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business)
   slots: Slot[];
+
+  @OneToMany(() => Booking, (booking: Booking) => booking.business)
+  bookings: Booking[];
 
   @Column({ default: false })
   featured: boolean;

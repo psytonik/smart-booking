@@ -22,7 +22,7 @@ export class Users {
   @Column({ select: false })
   password: string;
 
-  @Column({ enum: Role, default: Role.Client })
+  @Column({ type: 'enum', enum: Role, default: Role.Client })
   role: Role;
 
   @OneToOne(() => Business, (business) => business.owner)

@@ -10,6 +10,9 @@ import jwtConfig from '../../config/jwt.config';
 import { ConfigType } from '@nestjs/config';
 import { Request } from 'express';
 import { REQUEST_USER_KEY } from '../../constants/iam.constants';
+import { ActiveUserData } from '../../interface/active-user-data.interface';
+import { TokenType } from '../enums/token-type.enum';
+import { errorMessage } from '../../../common/error-message';
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
@@ -24,19 +27,27 @@ export class AccessTokenGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException('Not Authenticated');
     }
+    let payload: ActiveUserData;
     try {
-      request[REQUEST_USER_KEY] = await this.jwtService.verifyAsync(
-        token,
-        this.jwtConfiguration,
-      );
+      payload = await this.jwtService.verifyAsync<ActiveUserData>(token, {
+        secret: this.jwtConfiguration.secret,
+        audience: this.jwtConfiguration.audience,
+        issuer: this.jwtConfiguration.issuer,
+      });
     } catch (e) {
-      throw new UnauthorizedException(e.message);
+      throw new UnauthorizedException(errorMessage(e));
     }
+    // Refresh tokens are signed with the same key; without this check they
+    // would be accepted here and carry no email/role claims.
+    if (payload.type !== TokenType.Access) {
+      throw new UnauthorizedException('Invalid token type');
+    }
+    request[REQUEST_USER_KEY] = payload;
     return true;
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
-    const [_, token] = request.headers.authorization?.split(' ') ?? [];
+    const [, token] = request.headers.authorization?.split(' ') ?? [];
     return token;
   }
 }
