@@ -9,6 +9,7 @@ import {
 import { Users } from '../../users/entities/user.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
 import { Location } from './location.entity';
+import { Booking } from '../../booking/entities/booking.entity';
 
 @Entity()
 export class Business {
@@ -49,6 +50,9 @@ export class Business {
 
   @OneToMany(() => Slot, (dailySlots: Slot) => dailySlots.business)
   slots: Slot[];
+
+  @OneToMany(() => Booking, (booking: Booking) => booking.business)
+  bookings: Booking[];
 
   @Column({ default: false })
   featured: boolean;

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { INestApplication, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { configureApp } from './app.setup';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -8,8 +9,12 @@ import * as compression from 'compression';
 import helmet from 'helmet';
 
 async function bootstrap() {
-  const app: INestApplication = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
+  const trustProxy = configService.get('TRUST_PROXY');
+  if (trustProxy !== undefined) {
+    app.set('trust proxy', trustProxy);
+  }
   const isProduction = configService.get('NODE_ENV') === 'production';
   const swaggerEnabled =
     configService.get<boolean>('SWAGGER_ENABLED') ?? !isProduction;

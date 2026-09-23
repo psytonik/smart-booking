@@ -14,11 +14,12 @@ export class UsersService {
     @InjectRepository(Users) private readonly userRepository: Repository<Users>,
   ) {}
 
-  async findAll(): Promise<Users[]> {
-    return await this.userRepository
-      .createQueryBuilder('users')
-      .select(['users.id', 'users.email', 'users.role', 'users.workplace'])
-      .getMany();
+  async findAll(page: { limit: number; offset: number }): Promise<Users[]> {
+    return await this.userRepository.find({
+      order: { id: 'ASC' },
+      take: page.limit,
+      skip: page.offset,
+    });
   }
 
   /**

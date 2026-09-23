@@ -14,7 +14,6 @@ import { SlotStatus } from '../slot-management/enums/slotStatus.enum';
 import { Booking } from './entities/booking.entity';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Users } from '../users/entities/user.entity';
-import { plainToClass } from 'class-transformer';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BusinessService } from '../business/business.service';
 import { UsersService } from '../users/users.service';
@@ -106,30 +105,27 @@ export class BookingService {
       return newBooking;
     });
 
-    // The reservation is already committed at this point; a notification
-    // failure (e.g. email provider outage) shouldn't turn a successful
-    // booking into a 500 for the caller.
-    try {
-      const when = formatInTimeZone(booking.slot.start_time, business.timezone);
-      await this.notificationsService.send(
+    // The reservation is committed; queueing the emails can only fail if
+    // Redis is down, and that must not turn a booking into a 500.
+    const when = formatInTimeZone(booking.slot.start_time, business.timezone);
+    await Promise.all([
+      this.notificationsService.send(
         booking.user.email,
         `Service reserved for ${when} at ${business.address}`,
         `Reservation service from ${business.name}`,
-      );
-      await this.notificationsService.send(
+      ),
+      this.notificationsService.send(
         business.email,
         `${client.email} reserved slot at ${when}`,
         `New Reservation ${when}`,
-      );
-    } catch (err) {
+      ),
+    ]).catch((err) =>
       this.logger.error(
-        `Failed to send booking notifications for booking ${booking.id}`,
+        `Failed to queue booking notifications for booking ${booking.id}`,
         err,
-      );
-    }
-    return plainToClass(Booking, booking, {
-      excludeExtraneousValues: true,
-    });
+      ),
+    );
+    return booking;
   }
 
   /** Free slots in 7-day pages starting now; page 1 is the next 7 days. */
@@ -150,6 +146,9 @@ export class BookingService {
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.business', 'business')
+      .leftJoinAndSelect('booking.slot', 'slot')
+      .leftJoin('slot.staff', 'staff')
+      .addSelect('staff.id')
       .where('booking.id = :bookingId', { bookingId: id })
       .getOne();
 
@@ -189,14 +188,22 @@ export class BookingService {
     };
   }
 
-  async findReservedSlotsByUser(currentUser: ActiveUserData) {
+  async findReservedSlotsByUser(
+    currentUser: ActiveUserData,
+    page: { limit: number; offset: number },
+  ) {
     const user: Users = await this.usersService.findActiveUser(currentUser.sub);
     return await this.bookingRepository
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.business', 'business')
       .leftJoinAndSelect('booking.slot', 'slot')
+      .leftJoin('slot.staff', 'staff')
+      .addSelect('staff.id')
       .where('user.id = :userId', { userId: user.id })
+      .orderBy('booking.book_slot', 'ASC')
+      .take(page.limit)
+      .skip(page.offset)
       .getMany();
   }
 }

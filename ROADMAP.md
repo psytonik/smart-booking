@@ -74,6 +74,8 @@ Exit criteria: every item has a regression test (the start of B5). **✅ Done 20
 | 19 | C6 Pagination | 8.3 | |
 | 20 | C4 Entity model cleanup | 4 | Do the booking-side FK part together with F2 |
 
+**✅ Done 2026-09-23** (C4's FK move is deferred to F2 as planned). Tests: 45 unit, 33 e2e.
+
 ### Milestone 5 — Product features (after rules are agreed)
 
 Each feature needs its Phase E/F questions answered first. The order follows RICE; low confidence is what holds most of them back, so agreeing the rules is what moves them up.
@@ -176,7 +178,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   - `DailySlotsDto`/`WeeklySlotsDto` `@MinDate(new Date())` is evaluated **once at module load**, so the "not in the past" check goes stale the longer the process runs. Check in the service (or with a custom validator) instead.
   Files: `src/booking/**`, `src/slot-management/dto/*.ts`
 
-- [ ] **Auth hardening**
+- [x] **Auth hardening**
+  **Done (M4).** `@nestjs/throttler` with Redis storage: global limit plus a stricter `auth` limit on `/authentication/*` (`THROTTLE_*`, `AUTH_THROTTLE_LIMIT`, `TRUST_PROXY`). Sign-in returns one message for unknown email and wrong password, and runs a bcrypt compare in both cases. Refresh sessions are keyed `refresh:<user>:<tokenId>` with `EX = refreshTtl`, so several devices work at once and keys expire. `POST /authentication/logout` ends one session. `RolesGuard` reads the current role from the DB, which fixes the stale-JWT-role problem. e2e: generic error, two-device logout, role change without re-login, 429 after the auth limit.
   - No rate limiting on `/authentication/*`, so sign-in can be brute-forced. Add `@nestjs/throttler`, backed by Redis storage.
   - Sign-in reveals whether an email exists (`User does not exists` vs `Password does not match`). Return one generic message.
   - Refresh-token Redis key is `user-${id}` with no TTL: one session per user (logging in on phone logs out laptop) and keys never expire. Use key `user-${id}:${tokenId}` with `EX = refreshTtl`.
@@ -192,7 +195,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 
 ## Phase C — Medium (architecture / maintainability)
 
-- [ ] **Response DTOs instead of raw entities**
+- [x] **Response DTOs instead of raw entities**
+  **Done (M4).** `@Serialize(Dto)` (interceptor + `@ApiOkResponse`) on every endpoint returning data, with `excludeExtraneousValues`: users, businesses (public fields; owner only on open), slots (staff view with client email; public view with `staffId` only), bookings (id + time; details add business summary and slot), report. e2e asserts exact key sets and that no `password`/`information` appears in slot listings.
   Controllers return TypeORM entities (`Booking` with `user` and `business`, `Slot` with `booking.user`, the `openBusiness` response with the full owner). The only thing keeping the password hash out is `select: false`; the next `addSelect` or relation leaks it again. Add `ClassSerializerInterceptor` globally plus per-endpoint response DTOs (`@Expose` whitelist), and document them in Swagger (`@ApiOkResponse({ type })`).
 
 - [x] **Split `SlotManagementService` (377 lines, 32 imports)**
@@ -208,16 +212,19 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   Files: `src/slot-management/slot-management.service.ts`
 
 - [ ] **Entity model cleanup**
+  **Mostly done (M4).** `Business.bookings` inverse added (`Booking.business` no longer points at `slots`); `users.role` is a Postgres enum (migration `UserRoleEnum`, values preserved); an address change replaces the `Location` and deletes the old one in one transaction, and an unresolvable address now returns 400 like on create. The `book_slot`/`business` duplication is kept on purpose as a history snapshot (documented on the entity). **Remaining, with F2:** move the slot↔booking FK to the booking side.
   - `Booking.business` has its inverse set to `business.slots` (a `Slot[]`). It needs `Business.bookings: Booking[]`.
   - `Booking.book_slot` and `Booking.business` duplicate `slot.start_time` and `slot.business`. Keep them only if intentional (history snapshot), otherwise derive them.
   - The FK sits on the slot side (`slot.booking_byId`). With cancellation history (Phase F) it's better on the booking side (`booking.slotId`, with a partial unique index `WHERE status = 'active'`).
   - `Users.role` is `@Column({ enum })` without `type: 'enum'`, so it's stored as plain varchar with no DB constraint.
   - Updating a business address creates a new `Location` and leaves the old one orphaned. A geocoding failure on update is only `console.error`'d and the request returns 200 without changing the address (create returns 400 in the same case).
 
-- [ ] **Notifications: move out of the request path**
+- [x] **Notifications: move out of the request path**
+  **Done (M4).** `@nestjs/bullmq` (v11, CJS) queue `notifications`: `NotificationsService.send` enqueues, and `NotificationsProcessor` sends through `EmailSender` with 6 attempts and exponential backoff (30s…). Booking only enqueues; a queue failure is logged, never a 500. Verified live: booking answered in ~10ms, worker logged attempt 1/6 with the local invalid OAuth creds and kept the job for retry. Not done: a DB outbox (a crash between commit and enqueue loses that email). Add one if email delivery becomes critical.
   Two emails go out sequentially inside `reserveSlot`: they add latency, a failure is only logged, and there's no retry. Redis is already in the stack, so a queue (BullMQ via `@nestjs/bullmq`) with retries and an outbox record would fix this. This is also where cancellation emails and the future Google Calendar sync belong.
 
-- [ ] **Pagination and filters**
+- [x] **Pagination and filters**
+  **Done (M4).** `PaginationQueryDto` (`limit` 1–100, default 50; `offset`) on `GET /users`, `GET /business`, `GET /slots`, `GET /booking/slots`, `POST /slots/report` (report `totalSlots` is now the full count, not the page length). Public availability is bounded to 7-day pages with `page` 1–52.
   `GET /users`, `GET /slots` (admin: every slot on the platform), `GET /business` and `POST /slots/report` return everything. Add `limit`/`cursor` and a max page size. `GET /booking/business/:id?page=` has no upper bound and doesn't 404 on an unknown business.
 
 - [x] **Config: one source of truth**

@@ -42,8 +42,15 @@ export class SlotQueryService {
   }
 
   /** Every slot the caller may see, with who booked it. */
-  async listSlots(ctx: SlotContext, staffId?: number): Promise<Slot[]> {
-    return this.managedSlots(ctx, staffId).getMany();
+  async listSlots(
+    ctx: SlotContext,
+    page: { limit: number; offset: number },
+    staffId?: number,
+  ): Promise<Slot[]> {
+    return this.managedSlots(ctx, staffId)
+      .take(page.limit)
+      .skip(page.offset)
+      .getMany();
   }
 
   async listSlotsInRange(
@@ -57,16 +64,20 @@ export class SlotQueryService {
       .getMany();
   }
 
+  /** A page of booked slots in the range, plus the total count. */
   async bookedSlotsInRange(
     ctx: SlotContext,
     range: { start: Date; end: Date },
+    page: { limit: number; offset: number },
     staffId?: number,
-  ): Promise<Slot[]> {
+  ): Promise<[Slot[], number]> {
     return this.managedSlots(ctx, staffId)
       .andWhere('slot.status = :status', { status: SlotStatus.BOOKED })
       .andWhere('slot.start_time >= :start', { start: range.start })
       .andWhere('slot.start_time < :end', { end: range.end })
-      .getMany();
+      .take(page.limit)
+      .skip(page.offset)
+      .getManyAndCount();
   }
 
   private managedSlots(

@@ -2,6 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { DataSource } from 'typeorm';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../src/redis/redis.constants';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
 import { GeocodingService } from '../../src/business/geocoding.service';
@@ -19,11 +21,12 @@ export async function createTestApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(GeocodingService)
     .useValue({
-      geocode: async (address: string) => ({
-        lat: 32.08,
-        lng: 34.78,
-        formattedAddress: address,
-      }),
+      geocode: async (address: string) => {
+        if (address.includes('nowhere')) {
+          throw new Error('address not found');
+        }
+        return { lat: 32.08, lng: 34.78, formattedAddress: address };
+      },
     })
     .overrideProvider(NotificationsService)
     .useValue({ send: jest.fn() })
@@ -38,6 +41,7 @@ export async function createTestApp(): Promise<INestApplication> {
 }
 
 export async function resetDatabase(app: INestApplication): Promise<void> {
+  await app.get<Redis>(REDIS_CLIENT).flushdb();
   await app
     .get(DataSource)
     .query(

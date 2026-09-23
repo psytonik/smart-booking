@@ -102,7 +102,10 @@ export class BusinessService {
     return newBusiness;
   }
 
-  async findBusiness(): Promise<Business[]> {
+  async findBusiness(page: {
+    limit: number;
+    offset: number;
+  }): Promise<Business[]> {
     return await this.businessRepo
       .createQueryBuilder('business')
       .select([
@@ -115,6 +118,9 @@ export class BusinessService {
         'business.slug',
         'business.timezone',
       ])
+      .orderBy('business.name', 'ASC')
+      .take(page.limit)
+      .skip(page.offset)
       .getMany();
   }
 
@@ -175,20 +181,42 @@ export class BusinessService {
       updatedFields.phone_number = updateData.phone_number;
     }
 
+    let previousLocation: Location | null = null;
     if (updateData.address && updateData.address !== business.address) {
+      let resolved: { coords: Location; formattedAddress: string };
       try {
-        const { coords, formattedAddress } = await this.getLocationFromAddress(
-          updateData.address,
+        resolved = await this.getLocationFromAddress(updateData.address);
+      } catch (err) {
+        // Same as on create: an address we can't resolve is the client's to fix.
+        throw new BadRequestException(
+          `Could not resolve the given address: ${err.message}`,
         );
-        updatedFields.address = formattedAddress;
-        updatedFields.coords = await this.locationRepo.save(coords);
-      } catch (e) {
-        console.error('Error updating address', e);
       }
+      previousLocation = (
+        await this.businessRepo.findOne({
+          where: { id: business.id },
+          relations: { coords: true },
+        })
+      )?.coords;
+      updatedFields.address = resolved.formattedAddress;
+      updatedFields.coords = resolved.coords;
     }
 
-    const updatedBusiness = this.businessRepo.merge(business, updatedFields);
-    return this.businessRepo.save(updatedBusiness);
+    const { coords, ...plainFields } = updatedFields;
+    const updatedBusiness = this.businessRepo.merge(business, plainFields);
+    return this.dataSource.transaction(async (manager) => {
+      if (coords) {
+        // Assigned by reference after saving: merge()/create() deep-copy
+        // nested entities, and a copy would lack the new location's id.
+        updatedBusiness.coords = await manager.save(coords);
+      }
+      const saved = await manager.save(updatedBusiness);
+      // The replaced location is referenced by nothing else.
+      if (previousLocation) {
+        await manager.remove(previousLocation);
+      }
+      return saved;
+    });
   }
 
   /**

@@ -2,6 +2,11 @@
 // dedicated database so e2e runs can never touch the development one.
 process.env.NODE_ENV = 'test';
 process.env.POSTGRES_DB = process.env.POSTGRES_TEST_DB ?? 'smart_booking_test';
+// A separate Redis database, flushed between files (see resetDatabase).
+process.env.REDIS_DB = process.env.REDIS_TEST_DB ?? '1';
+// Tests sign in far more often than a real client would.
+process.env.THROTTLE_LIMIT ??= '10000';
+process.env.AUTH_THROTTLE_LIMIT ??= '10000';
 
 const defaults: Record<string, string> = {
   POSTGRES_HOST: 'localhost',

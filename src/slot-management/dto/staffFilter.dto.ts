@@ -1,6 +1,7 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional } from 'class-validator';
+import { ApiPropertyOptional, IntersectionType } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class StaffFilterDto {
   @ApiPropertyOptional({
@@ -13,3 +14,8 @@ export class StaffFilterDto {
   @IsInt()
   readonly staffId?: number;
 }
+
+export class ListSlotsQueryDto extends IntersectionType(
+  StaffFilterDto,
+  PaginationQueryDto,
+) {}

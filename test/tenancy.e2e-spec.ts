@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
+import { DataSource } from 'typeorm';
 import {
   bearer,
   createOwner,
@@ -59,6 +60,29 @@ describe('Tenant isolation (e2e)', () => {
       .set('Authorization', bearer(owner2.tokens))
       .send({ description: 'hijacked' })
       .expect(403);
+  });
+
+  it('replaces the location on an address change without orphaning the old one', async () => {
+    const locations = () =>
+      app.get(DataSource).query('SELECT count(*)::int AS n FROM location');
+    const [before] = await locations();
+
+    await request(app.getHttpServer())
+      .patch(`/business/${owner1.slug}`)
+      .set('Authorization', bearer(owner1.tokens))
+      .send({ address: 'New street 5' })
+      .expect(200);
+
+    const [after] = await locations();
+    expect(after.n).toBe(before.n);
+  });
+
+  it('rejects an address that cannot be resolved', async () => {
+    await request(app.getHttpServer())
+      .patch(`/business/${owner1.slug}`)
+      .set('Authorization', bearer(owner1.tokens))
+      .send({ address: 'nowhere at all' })
+      .expect(400);
   });
 
   it('rejects opening a second business', async () => {

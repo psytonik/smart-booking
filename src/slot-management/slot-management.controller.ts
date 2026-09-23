@@ -25,11 +25,13 @@ import { DailySlotsDto } from './dto/dailySlots.dto';
 import { WeeklySlotsDto } from './dto/weeklySlots.dto';
 import { UpdateDailySlotsDto } from './dto/updateDailySlots.dto';
 import { ReportDatesDto } from './dto/reportDates.dto';
-import { StaffFilterDto } from './dto/staffFilter.dto';
+import { ListSlotsQueryDto, StaffFilterDto } from './dto/staffFilter.dto';
 import { SlotAccessService } from './slot-access.service';
 import { SlotCommandService } from './slot-command.service';
 import { SlotQueryService } from './slot-query.service';
 import { todayIn } from './slot-schedule';
+import { Serialize } from '../common/serialization/serialize.decorator';
+import { SlotReportDto, SlotResponseDto } from './dto/slot-response.dto';
 
 @ApiBearerAuth()
 @Roles(Role.Business, Role.Employee, Role.Admin)
@@ -43,6 +45,7 @@ export class SlotManagementController {
   ) {}
 
   @ApiOperation({ summary: 'Create one day of slots' })
+  @Serialize(SlotResponseDto, { isArray: true })
   @Post('daily')
   async setDailySlots(
     @Body() dto: DailySlotsDto,
@@ -55,6 +58,7 @@ export class SlotManagementController {
   }
 
   @ApiOperation({ summary: 'Create slots for work days over several weeks' })
+  @Serialize(SlotResponseDto, { isArray: true })
   @Post('weekly')
   async setWeeklySlots(
     @Body() dto: WeeklySlotsDto,
@@ -75,19 +79,22 @@ export class SlotManagementController {
     );
   }
 
+  @Serialize(SlotResponseDto, { isArray: true })
   @Get()
   async findAll(
-    @Query() filter: StaffFilterDto,
+    @Query() query: ListSlotsQueryDto,
     @ActiveUser() user: ActiveUserData,
   ): Promise<Slot[]> {
     const ctx = await this.slotAccess.resolve(user);
     return this.slotQueries.listSlots(
       ctx,
-      this.slotAccess.visibleStaffId(ctx, filter.staffId),
+      query,
+      this.slotAccess.visibleStaffId(ctx, query.staffId),
     );
   }
 
   @ApiOperation({ summary: 'Slots of one day (YYYY-MM-DD, business timezone)' })
+  @Serialize(SlotResponseDto, { isArray: true })
   @Get(':date')
   async getSlotsByDay(
     @Param('date') date: string,
@@ -123,6 +130,7 @@ export class SlotManagementController {
     summary: "Replace a staff member's schedule for a day (bookings stay)",
   })
   @HttpCode(HttpStatus.OK)
+  @Serialize(SlotResponseDto, { isArray: true })
   @Patch(':date')
   async updateDailySlots(
     @Param('date') date: string,
@@ -138,21 +146,23 @@ export class SlotManagementController {
     summary: 'Booked slots between two days (inclusive, business timezone)',
   })
   @HttpCode(HttpStatus.OK)
+  @Serialize(SlotReportDto)
   @Post('report')
   async getReportByDate(
     @Body() dates: ReportDatesDto,
-    @Query() filter: StaffFilterDto,
+    @Query() query: ListSlotsQueryDto,
     @ActiveUser() user: ActiveUserData,
   ): Promise<{ slots: Slot[]; totalSlots: number }> {
     const ctx = await this.slotAccess.resolve(user);
-    const slots = await this.slotQueries.bookedSlotsInRange(
+    const [slots, totalSlots] = await this.slotQueries.bookedSlotsInRange(
       ctx,
       {
         start: this.slotAccess.dayRange(ctx.business, dates.startDate).start,
         end: this.slotAccess.dayRange(ctx.business, dates.endDate).end,
       },
-      this.slotAccess.visibleStaffId(ctx, filter.staffId),
+      query,
+      this.slotAccess.visibleStaffId(ctx, query.staffId),
     );
-    return { totalSlots: slots.length, slots };
+    return { totalSlots, slots };
   }
 }

@@ -4,8 +4,8 @@ import Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis.constants';
 
 /**
- * One shared Redis connection for the app (refresh-token storage, health
- * checks). Inject it with `@Inject(REDIS_CLIENT)`.
+ * One shared Redis connection for the app (refresh-token sessions, rate
+ * limiting, health checks). Inject it with `@Inject(REDIS_CLIENT)`.
  */
 @Global()
 @Module({
@@ -18,6 +18,7 @@ import { REDIS_CLIENT } from './redis.constants';
           host: configService.get('REDIS_HOST'),
           port: configService.get('REDIS_PORT'),
           password: configService.get('REDIS_PASSWORD') || undefined,
+          db: configService.get('REDIS_DB'),
         }),
     },
   ],

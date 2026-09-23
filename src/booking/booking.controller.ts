@@ -16,6 +16,13 @@ import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 import { Slot } from '../slot-management/entities/slot.entity';
 import { AvailableSlotsQueryDto } from './dto/availableSlotsQuery.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { Serialize } from '../common/serialization/serialize.decorator';
+import {
+  BookingDetailsDto,
+  BookingResponseDto,
+} from './dto/booking-response.dto';
+import { SlotSummaryDto } from '../slot-management/dto/slot-response.dto';
 
 @ApiTags('Booking')
 @Controller('booking')
@@ -23,6 +30,7 @@ export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
   @ApiBearerAuth()
+  @Serialize(BookingResponseDto)
   @Post(':businessId')
   create(
     @Param('businessId') businessId: string,
@@ -33,6 +41,7 @@ export class BookingController {
   }
 
   @Auth(AuthType.None)
+  @Serialize(SlotSummaryDto, { isArray: true })
   @Get('/business/:businessId')
   async availableSlots(
     @Param('businessId') businessId: string,
@@ -46,6 +55,7 @@ export class BookingController {
   }
 
   @ApiBearerAuth()
+  @Serialize(BookingDetailsDto)
   @Get('/slot/:id')
   async findReservedSlotById(
     @Param('id') bookedSlotId: string,
@@ -67,8 +77,12 @@ export class BookingController {
   }
 
   @ApiBearerAuth()
+  @Serialize(BookingDetailsDto, { isArray: true })
   @Get('/slots/')
-  async findReservedSlotsByCustomer(@ActiveUser() currentUser: ActiveUserData) {
-    return await this.bookingService.findReservedSlotsByUser(currentUser);
+  async findReservedSlotsByCustomer(
+    @ActiveUser() currentUser: ActiveUserData,
+    @Query() page: PaginationQueryDto,
+  ) {
+    return await this.bookingService.findReservedSlotsByUser(currentUser, page);
   }
 }

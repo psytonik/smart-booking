@@ -10,6 +10,12 @@ import { IamModule } from './iam/iam.module';
 import { BusinessModule } from './business/business.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from './redis/redis.constants';
+import { AuthenticationController } from './iam/authentication/authentication.controller';
 
 @Module({
   imports: [
@@ -42,6 +48,16 @@ import { HealthModule } from './health/health.module';
         REDIS_HOST: Joi.string().default('localhost'),
         REDIS_PORT: Joi.number().default(6379),
         REDIS_PASSWORD: Joi.string().allow('').optional(),
+        REDIS_DB: Joi.number().integer().min(0).default(0),
+
+        // Rate limiting, per client IP, over a sliding window.
+        THROTTLE_TTL_SECONDS: Joi.number().integer().min(1).default(60),
+        THROTTLE_LIMIT: Joi.number().integer().min(1).default(120),
+        // Stricter limit for /authentication/* (sign-in brute force).
+        AUTH_THROTTLE_LIMIT: Joi.number().integer().min(1).default(10),
+        // Express "trust proxy" (e.g. 1 behind one load balancer), so rate
+        // limits key on the real client IP instead of the proxy's.
+        TRUST_PROXY: Joi.alternatives(Joi.number(), Joi.boolean()).optional(),
 
         GOOGLE_API_KEY: Joi.string().required(),
         GOOGLE_OAUTH_CLIENT_ID: Joi.string().required(),
@@ -70,6 +86,29 @@ import { HealthModule } from './health/health.module';
     }),
     RedisModule,
     HealthModule,
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService, REDIS_CLIENT],
+      useFactory: (configService: ConfigService, redis: Redis) => {
+        const ttl = configService.get<number>('THROTTLE_TTL_SECONDS') * 1000;
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              ttl,
+              limit: configService.get<number>('THROTTLE_LIMIT'),
+            },
+            {
+              name: 'auth',
+              ttl,
+              limit: configService.get<number>('AUTH_THROTTLE_LIMIT'),
+              skipIf: (context) =>
+                context.getClass() !== AuthenticationController,
+            },
+          ],
+          storage: new ThrottlerStorageRedisService(redis),
+        };
+      },
+    }),
     SlotManagementModule,
     BookingModule,
     UsersModule,
@@ -78,6 +117,6 @@ import { HealthModule } from './health/health.module';
     BusinessModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

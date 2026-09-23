@@ -8,18 +8,25 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { ActiveUser } from '../iam/decorators/active-user.decorator';
 import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Business } from './entities/business.entity';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 import { Roles } from '../iam/authorization/decorators/roles.decorator';
 import { Role } from '../users/enums/role.enum';
 import { UpdateBusinessDto } from './dto/update-business.dto';
+import { Serialize } from '../common/serialization/serialize.decorator';
+import {
+  BusinessResponseDto,
+  OpenedBusinessResponseDto,
+} from './dto/business-response.dto';
 
 @ApiTags('Business')
 @Controller('business')
@@ -28,6 +35,7 @@ export class BusinessController {
 
   @ApiBearerAuth()
   @Post('/open')
+  @Serialize(OpenedBusinessResponseDto)
   async create(
     @Body() createBusinessDto: CreateBusinessDto,
     @ActiveUser() user: ActiveUserData,
@@ -37,11 +45,12 @@ export class BusinessController {
 
   @Get()
   @Auth(AuthType.None)
-  async findAll(): Promise<Business[]> {
-    return this.businessService.findBusiness();
+  @Serialize(BusinessResponseDto, { isArray: true })
+  async findAll(@Query() page: PaginationQueryDto): Promise<Business[]> {
+    return this.businessService.findBusiness(page);
   }
 
-  @ApiResponse({ status: 200, description: 'Business Info' })
+  @Serialize(BusinessResponseDto)
   @HttpCode(HttpStatus.OK)
   @Get(':slug')
   @Auth(AuthType.None)
@@ -53,7 +62,7 @@ export class BusinessController {
     return business;
   }
 
-  @ApiResponse({ status: 200, description: 'Business Info' })
+  @Serialize(BusinessResponseDto)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @Roles(Role.Business, Role.Admin)

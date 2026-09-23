@@ -122,6 +122,19 @@ describe('Scheduling: timezones and staff (e2e)', () => {
     expect(statuses).toEqual(['booked', 'available', 'break', 'available']);
   });
 
+  it('paginates slot lists and caps the page size', async () => {
+    const page = await request(server())
+      .get('/slots?limit=2&offset=1')
+      .set(auth(owner.tokens))
+      .expect(200);
+    expect(page.body).toHaveLength(2);
+
+    await request(server())
+      .get('/slots?limit=500')
+      .set(auth(owner.tokens))
+      .expect(400);
+  });
+
   it('refuses dates in the past in the business timezone', async () => {
     await request(server())
       .post('/slots/daily')

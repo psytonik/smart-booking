@@ -32,6 +32,10 @@ export class AuthenticationService {
     private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
     private readonly refreshTokenIdsStorage: RefreshTokenIdsStorage,
   ) {}
+
+  // Hash of a random secret, compared against when the email is unknown so
+  // sign-in costs the same bcrypt round either way.
+  private readonly dummyHash = this.hashingService.hash(randomUUID());
   async signUp(signUpDto: SignUpDto): Promise<Omit<Users, 'password'>> {
     try {
       const newUser: Users = new Users();
@@ -57,15 +61,14 @@ export class AuthenticationService {
       .addSelect('user.password')
       .where('user.email = :email', { email: signInDto.email })
       .getOne();
-    if (!user) {
-      throw new UnauthorizedException('User does not exists ');
-    }
+    // Same message and a hash comparison either way, so the response doesn't
+    // reveal whether the email is registered.
     const isEqual: boolean = await this.hashingService.compare(
       signInDto.password,
-      user.password,
+      user?.password ?? (await this.dummyHash),
     );
-    if (!isEqual) {
-      throw new UnauthorizedException('Password does not match');
+    if (!user || !isEqual) {
+      throw new UnauthorizedException('Invalid email or password');
     }
     return await this.generateTokens(user);
   }
@@ -102,7 +105,11 @@ export class AuthenticationService {
         type: TokenType.Refresh,
       }),
     ]);
-    await this.refreshTokenIdsStorage.insert(user.id, refreshTokenId);
+    await this.refreshTokenIdsStorage.insert(
+      user.id,
+      refreshTokenId,
+      this.jwtConfiguration.refreshTokenTtl,
+    );
     return {
       accessToken,
       refreshToken,
@@ -110,29 +117,51 @@ export class AuthenticationService {
   }
 
   async refreshToken(refreshTokenDto: RefreshTokenDto) {
+    const { sub, refreshTokenId } = await this.verifyRefreshToken(
+      refreshTokenDto.refreshToken,
+    );
+    const user: Users = await this.userRepository.findOneBy({ id: sub });
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
     try {
-      const { sub, refreshTokenId, type } = await this.jwtService.verifyAsync<
-        Pick<ActiveUserData, 'sub' | 'type'> & { refreshTokenId: string }
-      >(refreshTokenDto.refreshToken, {
-        secret: this.jwtConfiguration.secret,
-        audience: this.jwtConfiguration.audience,
-        issuer: this.jwtConfiguration.issuer,
-      });
-      if (type !== TokenType.Refresh) {
-        throw new UnauthorizedException('Invalid token type');
-      }
-      const user: Users = await this.userRepository.findOneBy({ id: sub });
-      if (!user) {
-        throw new UnauthorizedException('User no longer exists');
-      }
       await this.refreshTokenIdsStorage.validate(user.id, refreshTokenId);
-      await this.refreshTokenIdsStorage.invalidate(user.id);
-      return await this.generateTokens(user);
     } catch (e) {
       if (e instanceof InvalidatedRefreshTokenError) {
         throw new UnauthorizedException('Access denied');
       }
+      throw e;
+    }
+    await this.refreshTokenIdsStorage.invalidate(user.id, refreshTokenId);
+    return await this.generateTokens(user);
+  }
+
+  /** Ends the session the refresh token belongs to. Idempotent. */
+  async logout(refreshTokenDto: RefreshTokenDto): Promise<void> {
+    const { sub, refreshTokenId } = await this.verifyRefreshToken(
+      refreshTokenDto.refreshToken,
+    );
+    await this.refreshTokenIdsStorage.invalidate(sub, refreshTokenId);
+  }
+
+  private async verifyRefreshToken(
+    token: string,
+  ): Promise<{ sub: number; refreshTokenId: string }> {
+    let payload: Pick<ActiveUserData, 'sub' | 'type'> & {
+      refreshTokenId: string;
+    };
+    try {
+      payload = await this.jwtService.verifyAsync(token, {
+        secret: this.jwtConfiguration.secret,
+        audience: this.jwtConfiguration.audience,
+        issuer: this.jwtConfiguration.issuer,
+      });
+    } catch (e) {
       throw new UnauthorizedException(e.message);
     }
+    if (payload.type !== TokenType.Refresh) {
+      throw new UnauthorizedException('Invalid token type');
+    }
+    return payload;
   }
 }

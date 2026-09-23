@@ -8,19 +8,19 @@ import {
 import { Users } from '../../users/entities/user.entity';
 import { Business } from '../../business/entities/business.entity';
 import { Slot } from '../../slot-management/entities/slot.entity';
-import { Expose } from 'class-transformer';
 
 @Entity()
 export class Booking {
-  @Expose()
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Expose()
+  // book_slot and business duplicate the slot's start_time and business on
+  // purpose: they keep a booking meaningful if its slot is later changed or
+  // removed (booking history, roadmap F2).
   @Column({ type: 'timestamptz' })
   book_slot: Date;
 
-  @ManyToOne(() => Business, (business) => business.slots)
+  @ManyToOne(() => Business, (business) => business.bookings)
   business: Business;
 
   @ManyToOne(() => Users, (users) => users.booking)

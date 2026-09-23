@@ -56,6 +56,13 @@ POSTGRES_DB=smart_booking
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=               # optional
+REDIS_DB=0                    # e2e tests use 1
+
+# Rate limiting (per client IP)
+THROTTLE_TTL_SECONDS=60
+THROTTLE_LIMIT=120            # all routes
+AUTH_THROTTLE_LIMIT=10        # /authentication/* (brute-force protection)
+TRUST_PROXY=                  # e.g. 1 behind one load balancer, so limits key on the real client IP
 
 # JWT
 JWT_SECRET=
@@ -123,13 +130,16 @@ The app container applies pending migrations on start, then runs as a non-root u
 
 | Area | Routes |
 |---|---|
-| Authentication | `POST /authentication/sign-up`, `/sign-in`, `/refresh-tokens` |
+| Authentication | `POST /authentication/sign-up`, `/sign-in`, `/refresh-tokens`, `/logout` |
 | Users | `GET /users`, `GET /users/:id`, `PATCH /users/:id` (admin only) |
 | Business | `POST /business/open`, `GET /business`, `GET /business/:slug`, `PATCH /business/:slug` |
 | Slot management | `POST /slots/daily`, `POST /slots/weekly`, `GET /slots`, `GET /slots/:date`, `PATCH /slots/:date`, `DELETE /slots/:date`, `POST /slots/report` |
 | Booking | `POST /booking/:businessId`, `GET /booking/business/:businessId`, `GET /booking/slot/:id`, `DELETE /booking/slot/:id`, `GET /booking/slots` |
+| Health | `GET /health` |
 
-Auth is enforced globally by default; routes that don't need it opt out explicitly via `@Auth(AuthType.None)`. Business/slot-management endpoints additionally require the `business`, `employee`, or `admin` role, and are scoped so a business can only manage its own data.
+Auth is enforced globally by default; routes that don't need it opt out explicitly via `@Auth(AuthType.None)`. Role checks use the user's current role from the database, so a role change applies immediately without signing in again. Each sign-in is its own refresh-token session (several devices at once); `/logout` ends one.
+
+List endpoints take `?limit=` (default 50, max 100) and `?offset=`. Responses are shaped by explicit response DTOs (`@Serialize`), so entity fields never leak by accident. Emails go through a BullMQ queue on Redis and are retried with backoff; a failing provider never affects the request. Business/slot-management endpoints additionally require the `business`, `employee`, or `admin` role, and are scoped so a business can only manage its own data.
 
 ## Testing
 
