@@ -13,7 +13,36 @@ Full read of `src/`, infra and docs after the 2026-08-26 roadmap was closed. Pro
 - **Google Calendar** → planned integration (keep the dependency, build it later).
 - **Nearby search, business-side cancellation, admin tools, booking limits** → wanted, but **scope and rules are still to be discussed** before implementation (see Phase F).
 
+## Product direction (from the product owner, 2026-09-23)
+
+What the product is, as stated by its owner. This overrides earlier assumptions in this document.
+
+- **Booking platform for service businesses** (barbers, salons, clinics, tutors, …). Every master works their own way.
+- **Clients book a service with a master**, not a bare time slot. Services have their own durations (a haircut and a beard trim take different time), and they can differ per master.
+- **Masters control their own day.** Breaks are the master's decision, not something the system carves out. A master may decide to work through lunch if clients want that hour.
+- **Clients never pay in the app.** The platform earns from **business subscriptions**; the plans and billing model are still to be designed.
+- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow).
+- **Notifications:** email first; **WhatsApp / Telegram** (and push for the mobile app) later.
+- **"Smart"** refers to future intelligent features in the client app (e.g. suggestions, reminders).
+
+### What this changes technically
+
+1. **Scheduling model: switch from pre-generated slots to working hours + computed availability.** Today a day is cut into fixed-length slot rows in advance. That can't represent services of different lengths on the same master's day, and a 30-min slot grid can't host a 45-min service. The standard model for this domain:
+   - **Working hours** per master: a weekly template plus per-date overrides (day off, different hours).
+   - **Blocked time** the master adds or removes themselves (break, errand), any time.
+   - **Appointments**: master + service + start, with end = start + duration.
+   - **Availability** is *computed*: working hours − blocked time − appointments, stepped for the requested service's duration.
+
+   What M3 built carries over: UTC/`timestamptz`, per-business timezone and DST handling, the staff model and access rules, and row locking on booking. The `slot` table and the auto-lunch logic get replaced. Double-booking protection moves to a Postgres exclusion constraint on `(staff, tstzrange(start, end))`, which rejects overlapping appointments of any length at the database level.
+2. **New central entity: Service**, meaning name, duration and price shown to clients (informational; clients don't pay), offered by specific masters with optional per-master duration/price.
+3. **Remove the automatic lunch break** (`lunchDuration`). Breaks become blocked time the master manages.
+4. **Notification channels**: turn `NotificationsService` into a channel-agnostic dispatcher (email now; WhatsApp, Telegram and mobile push as later adapters) with per-user contact details and preferences. The queue already fits this.
+5. **Mobile-ready API**: versioned routes (`/v1`), because shipped apps can't be force-updated; device tokens for push; stable error format.
+6. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
+
 ## Priority plan (RICE, 2026-09-23)
+
+> **Superseded in part by the product direction above:** milestones 1–4 are done; the next milestone is **M6 — Services & flexible scheduling** (below), ahead of the M5 features.
 
 The Phases below group work by *type*. This plan orders it by *execution*: RICE score first, then adjusted for dependencies and launch-blocking risk. Work milestone by milestone.
 
@@ -270,6 +299,26 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   `@googleapis/calendar` is installed but unused.
   To do: OAuth connection per business (and optionally per employee); create/update/delete a calendar event when a booking is created or cancelled (through the notification queue from Phase C); store tokens encrypted.
   **To discuss:** one-way push or two-way sync (block slots that are busy in Google Calendar); whether clients also get an event / `.ics` attachment.
+
+## Phase G — Product model (from the 2026-09-23 product direction)
+
+### Milestone 6 — Services & flexible scheduling (next)
+
+- [ ] **G1 Service catalog.** `Service` (business, name, duration, price for display, active) plus `StaffService` (which masters offer it, optional per-master duration/price). CRUD for owners; public list per business.
+- [ ] **G2 Working hours.** Weekly template per master plus date overrides (day off, custom hours), in the business timezone. Replaces `POST /slots/daily|weekly`.
+- [ ] **G3 Blocked time.** The master adds or removes breaks and blocks themselves at any time. Replaces the automatic lunch break.
+- [ ] **G4 Computed availability.** `GET /businesses/:id/availability?serviceId&staffId?&date` returns free start times from hours − blocks − appointments, stepped by service duration. Pure function, unit-tested like `slot-schedule.ts` (DST included).
+- [ ] **G5 Appointments.** Booking becomes master + service + start, with end derived. A Postgres exclusion constraint on `(staff, tstzrange(start, end))` prevents overlaps; the existing transactional flow stays. Folds in F2's booking statuses/history and C4's FK question, since the slot table goes away.
+- [ ] **G6 Migration.** Convert existing slots/bookings (bookings become appointments with a default service), then drop `slot`.
+
+**To agree before starting M6:** whether the time step for start times is fixed (e.g. every 15 min) or equals the service duration; whether a master can set buffer time between appointments; whether price is shown to clients at all.
+
+### Later
+
+- [ ] **G7 Notification channels.** Channel-agnostic dispatcher; user contact details and preferences; WhatsApp, Telegram, mobile push adapters (email adapter = today's `EmailSender`).
+- [ ] **G8 Mobile-ready API.** `/v1` prefix, device-token registration for push, documented error format.
+- [ ] **G9 Subscriptions.** Plans, per-business subscription, limits (staff count, …), billing provider. Needs a product decision on plans first.
+- [ ] **G10 "Smart" client features.** Future: suggestions, reminders, rebooking. Out of scope until the core is live.
 
 ## Phase F — Product features: wanted, rules to be discussed
 
