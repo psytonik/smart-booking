@@ -1,5 +1,7 @@
 # Roadmap
 
+> **Product requirements (PRD):** [Smart Booking — PRD](https://claude.ai/code/artifact/704c3a45-d934-41c6-8c59-d8b09a5f3ab9): what the product is, roles, key flows, requirements FR1–FR20 with status, monetization, release stages, risks and open questions. Start there for the *what and why*; this file is the engineering *how and when*. (The doc is private until shared from its Share menu.)
+
 Open work lives in the **2026-09-23 architecture review** section directly below. Everything after it is the closed history of the 2026-08-26 backend + architecture code review, kept for reference. Ordered by priority; work top to bottom within each phase.
 
 ---

@@ -2,7 +2,7 @@
 
 Smart Booking is a multi-tenant appointment-scheduling API. A business signs up, opens a storefront, defines its working hours as bookable slots (daily or weekly, with a lunch break carved out), and its customers reserve those slots. It's built as a NestJS modular monolith on PostgreSQL, with Redis backing refresh-token storage, Google Maps for address geocoding, and Google Calendar/SMTP for notifications.
 
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the module map, entity model, and API surface, and [`ROADMAP.md`](./ROADMAP.md) for the history of fixes applied to this codebase.
+Product requirements: [Smart Booking — PRD](https://claude.ai/code/artifact/704c3a45-d934-41c6-8c59-d8b09a5f3ab9). See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the module map, entity model, and API surface, and [`ROADMAP.md`](./ROADMAP.md) for the history of fixes applied to this codebase.
 
 ## Core concepts
 
