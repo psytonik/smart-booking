@@ -244,7 +244,8 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   `findAllSlots` calls `getBusinessByOwner` *before* the admin check, so an admin without a business gets 400 and the admin branch is unreachable. Elsewhere admins get global access implicitly. Pick one model: admin endpoints take an explicit `businessId`.
   Files: `src/slot-management/slot-management.service.ts`
 
-- [ ] **Entity model cleanup**
+- [x] **Entity model cleanup**
+  **Done (M6):** the remaining slot↔booking FK question is moot; the `slot` table is gone and bookings hold their own time range.
   **Mostly done (M4).** `Business.bookings` inverse added (`Booking.business` no longer points at `slots`); `users.role` is a Postgres enum (migration `UserRoleEnum`, values preserved); an address change replaces the `Location` and deletes the old one in one transaction, and an unresolvable address now returns 400 like on create. The `book_slot`/`business` duplication is kept on purpose as a history snapshot (documented on the entity). **Remaining, with F2:** move the slot↔booking FK to the booking side.
   - `Booking.business` has its inverse set to `business.slots` (a `Slot[]`). It needs `Business.bookings: Booking[]`.
   - `Booking.book_slot` and `Booking.business` duplicate `slot.start_time` and `slot.business`. Keep them only if intentional (history snapshot), otherwise derive them.
@@ -304,14 +305,20 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 
 ## Phase G — Product model (from the 2026-09-23 product direction)
 
-### Milestone 6 — Services & flexible scheduling (next)
+### Milestone 6 — Services & flexible scheduling ✅ Done 2026-09-23
 
-- [ ] **G1 Service catalog.** `Service` (business, name, duration, price for display, active) plus `StaffService` (which masters offer it, optional per-master duration/price). CRUD for owners; public list per business.
-- [ ] **G2 Working hours.** Weekly template per master plus date overrides (day off, custom hours), in the business timezone. Replaces `POST /slots/daily|weekly`.
-- [ ] **G3 Blocked time.** The master adds or removes breaks and blocks themselves at any time. Replaces the automatic lunch break.
-- [ ] **G4 Computed availability.** `GET /businesses/:id/availability?serviceId&staffId?&date` returns free start times from hours − blocks − appointments, stepped by service duration. Pure function, unit-tested like `slot-schedule.ts` (DST included).
-- [ ] **G5 Appointments.** Booking becomes master + service + start, with end derived. A Postgres exclusion constraint on `(staff, tstzrange(start, end))` prevents overlaps; the existing transactional flow stays. Folds in F2's booking statuses/history and C4's FK question, since the slot table goes away.
-- [ ] **G6 Migration.** Convert existing slots/bookings (bookings become appointments with a default service), then drop `slot`.
+- [x] **G1 Service catalog.** `Service` (business, name, duration, price for display, active) plus `StaffService` (which masters offer it, optional per-master duration/price). CRUD for owners; public list per business.
+  **Done (M6).** `Service` + `StaffService` (per-staff duration/buffer/price overrides); owner CRUD at `/services` (delete = deactivate, history kept), `PUT /services/:id/staff`; public `GET /business/:slug/services`. `Business.currency` (ISO 4217, required on create).
+- [x] **G2 Working hours.** Weekly template per master plus date overrides (day off, custom hours), in the business timezone. Replaces `POST /slots/daily|weekly`.
+  **Done (M6).** `WorkingHours` (weekly template, split shifts) + `ScheduleOverride` (per-date hours or day off) at `/schedule/working-hours` and `/schedule/overrides/:date`; overlapping or inverted intervals → 400. The `/slots/*` endpoints are gone.
+- [x] **G3 Blocked time.** The master adds or removes breaks and blocks themselves at any time. Replaces the automatic lunch break.
+  **Done (M6).** `TimeBlock` at `/schedule/blocks`; a block over a confirmed booking → 409. The automatic lunch break is removed.
+- [x] **G4 Computed availability.** `GET /businesses/:id/availability?serviceId&staffId?&date` returns free start times from hours − blocks − appointments, stepped by service duration. Pure function, unit-tested like `slot-schedule.ts` (DST included).
+  **Done (M6).** Pure `availability.ts` (15-min local grid, duration must fit in working hours, buffer must stay clear of bookings/blocks, split shifts, DST) with 12 unit tests; `GET /booking/business/:id/availability?serviceId&staffId&from&days` (≤14 days) returns `{start, end, staffId, price_minor}`.
+- [x] **G5 Appointments.** Booking becomes master + service + start, with end derived. A Postgres exclusion constraint on `(staff, tstzrange(start, end))` prevents overlaps; the existing transactional flow stays. Folds in F2's booking statuses/history and C4's FK question, since the slot table goes away.
+  **Done (M6).** `POST /booking/:businessId {serviceId, start, staffId?}` re-validates against availability and inserts under a per-staff advisory lock. The Postgres exclusion constraint `booking_no_overlap` is the guarantee (an e2e test inserts directly and gets `23P01`). Bookings snapshot duration/price/currency; status `confirmed | cancelled_by_client | cancelled_by_business`; client cancel keeps the record. e2e: 5 concurrent requests → exactly one 201. Found while testing: without the lock, concurrent overlapping inserts deadlock (`40P01`) during the constraint check.
+- [x] **G6 Migration.** Convert existing slots/bookings (bookings become appointments with a default service), then drop `slot`.
+  **Done (M6).** `ServicesAndFlexibleScheduling`: bookings keep time and staff (from their slot, or `book_slot` + owner as fallback) and point to an inactive per-business "Appointment" service; slot schedules aren't converted (pre-launch); `slot` dropped. Verified up → down → up on dev data, no drift.
 
 **Decided 2026-09-23:** start times on a fixed **15-minute** grid (local time); a **buffer** after each appointment (set on the service, overridable per master like duration and price); **price is shown** to clients, in the business's currency (`Business.currency`, ISO 4217, stored as integer minor units).
 
@@ -337,6 +344,7 @@ These are confirmed as wanted, but **requirements have to be agreed before imple
   Discuss: search radius and sorting, filters (category, availability today), whether to switch to PostGIS (`geography(Point)` + GiST index) or keep lat/lng with a bounding-box query, and categories/tags for businesses.
 
 - [ ] **Business-side cancellation plus booking history.** Today only the client can cancel, and cancelling hard-deletes the booking (the report loses it).
+  **Partly done (M6):** bookings now have statuses and are never deleted (client cancel → `cancelled_by_client`, history kept). **Still to agree:** business-side cancellation rules (reason, client notification) and the client cancellation window.
   Discuss: `Booking.status` (`active | cancelled_by_client | cancelled_by_business | completed | no_show`) instead of delete; required reason; client notification; cancellation window/policy for clients (e.g. not later than N hours before).
 
 - [ ] **Admin tools.** An admin can only be created through the REPL, and `Business.featured` has no write path.
