@@ -38,10 +38,10 @@ jobs:
       POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # --legacy-peer-deps: see the Dockerfile's build stage for why.
       - run: npm ci --legacy-peer-deps
@@ -53,5 +53,5 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t smart-booking:ci .
