@@ -1,5 +1,11 @@
-import { Column, Entity, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { Business } from './business.entity';
+import {
+  Column,
+  Entity,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  type Relation,
+} from 'typeorm';
+import { Business } from './business.entity.js';
 
 @Entity()
 export class Location {
@@ -13,5 +19,5 @@ export class Location {
   lng: number;
 
   @OneToOne(() => Business, (business: Business) => business.coords)
-  business: Business;
+  business: Relation<Business>;
 }

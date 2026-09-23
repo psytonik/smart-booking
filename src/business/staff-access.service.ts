@@ -4,13 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { UsersService } from '../users/users.service';
-import { BusinessService } from './business.service';
-import { Users } from '../users/entities/user.entity';
-import { Business } from './entities/business.entity';
-import { Role } from '../users/enums/role.enum';
-import { dayRange, isCalendarDay, todayIn } from '../common/time';
+import { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { UsersService } from '../users/users.service.js';
+import { BusinessService } from './business.service.js';
+import { Users } from '../users/entities/user.entity.js';
+import { Business } from './entities/business.entity.js';
+import { Role } from '../users/enums/role.enum.js';
+import { dayRange, isCalendarDay, todayIn } from '../common/time.js';
 
 /** Who is acting on a business's staff data, and for which business. */
 export interface StaffContext {

@@ -1,8 +1,8 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AccessTokenGuard } from './access-token.guard';
-import { TokenType } from '../enums/token-type.enum';
-import { REQUEST_USER_KEY } from '../../constants/iam.constants';
+import { AccessTokenGuard } from './access-token.guard.js';
+import { TokenType } from '../enums/token-type.enum.js';
+import { REQUEST_USER_KEY } from '../../constants/iam.constants.js';
 
 describe('AccessTokenGuard', () => {
   const jwtConfiguration = {

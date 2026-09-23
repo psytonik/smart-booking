@@ -18,8 +18,8 @@ graph TD
 
 | Concern | Choice |
 |---|---|
-| Framework | NestJS 11 (Express platform) |
-| Language | TypeScript, `strict` (except `strictPropertyInitialization`) |
+| Framework | NestJS 12 (Express platform, ESM) |
+| Language | TypeScript 5.9, `strict` + `isolatedModules` (except `strictPropertyInitialization`) |
 | Database | PostgreSQL 15 via TypeORM 0.3, migrations in `src/migrations`, `synchronize: false` |
 | Redis | ioredis: refresh sessions, `@nestjs/throttler` storage, BullMQ |
 | Auth | JWT access + refresh tokens (typed `access`/`refresh`), bcrypt |
@@ -133,6 +133,18 @@ erDiagram
 **Consistency.** A booking is re-validated against current availability, then inserted in a transaction that takes a per-staff advisory lock. The Postgres exclusion constraint on `(staffId, tstzrange(start_time, blocked_until))` is the real guarantee: overlapping bookings of any length can't exist, whatever the app does (covered by an e2e test that inserts directly). The advisory lock only prevents deadlocks between concurrent overlapping inserts. Five simultaneous requests for one time produce exactly one 201. Bookings keep a snapshot of duration, price and currency, so catalog edits don't rewrite history.
 
 **Output.** Handlers may return entities, but every data-returning endpoint is wrapped in `@Serialize(Dto)` with `excludeExtraneousValues`, so only whitelisted fields leave the API.
+
+**ESM.** NestJS 12 ships no CommonJS build, so the project is a real ES module (`package.json` `"type": "module"`, `tsconfig.json` `module`/`moduleResolution: "nodenext"`). A few consequences worth knowing before touching entities, auth, or test infra:
+
+- Relative imports spell out `.js` (`from './x.js'`) even though the source is `.ts` — NodeNext resolves compiled output, not source files.
+- Entity relations are typed `Relation<Business>` (TypeORM's own escape hatch), not the bare class. Circular entity references (`Business` ↔ `Location`/`Users`/`Booking`, and indirectly `Business → Booking → Service`) crash at boot under real ESM otherwise: `emitDecoratorMetadata` emits a synchronous reference to the *other* class for `design:type`, and if that class is still mid-initialization (its module is the other half of the cycle), Node throws `ReferenceError: Cannot access 'X' before initialization`. `Relation<T>`'s generic wrapper isn't resolved by TS's metadata serializer, so it falls back to `Object` instead of the crashing reference — harmless, since TypeORM gets the relation's real target from the decorator's `() => Business` callback, never from this metadata.
+- A handful of CommonJS packages need a **default** import, not `import * as x`: `joi`, `compression`, `supertest`. Node's CJS/ESM interop can't always synthesize named exports for a CJS module (`Joi.object` resolves to `undefined` via `import * as Joi`, and a CJS module whose `module.exports` is itself a function — `compression`, `supertest` — isn't callable via its namespace import, only via `.default`). `dotenv`, `nodemailer`, `bcrypt` are fine either way — verified empirically per package, not assumed.
+- `ioredis`'s default export triggers a real TS/NodeNext bug (`Cannot use namespace 'Redis' as a type`) — import the class as a named export instead: `import { Redis } from 'ioredis'`.
+- A class field initializer that reads `this.someConstructorParam` breaks under ES2022 output (required by NodeNext): field initializers now run *before* constructor parameter properties are assigned, so the read sees `undefined`. Assign such fields in the constructor body instead.
+- `isolatedModules: true` (needed for ts-jest to compile files independently under ESM) requires every type-only import to say so explicitly (`import type { X }`, or `import { type X, Y }`) — otherwise TS can't safely elide it per-file, and Node throws `SyntaxError: does not provide an export named 'X'` at the type's (nonexistent) runtime binding.
+- Jest needs `NODE_OPTIONS=--experimental-vm-modules`, `ts-jest`'s `useESM: true`, and a `moduleNameMapper` stripping `.js` back to the `.ts` source. `jest.fn()`/`jest.spyOn()` etc. must come from `import { jest } from '@jest/globals'` — the global isn't reliably injected into real ESM module scope. Jest's `globalSetup` runs outside the normal transform pipeline entirely (its own relative imports don't get compiled), so it stays self-contained rather than importing shared test helpers.
+- Jest ≥ 30 is required: `@nestjs/throttler` (and several other Nest ecosystem packages) are still CommonJS and `require()` `@nestjs/common` internally, which only works if the ESM graph is already linked. Jest < 30 refuses this outright; Jest 30 supports it but can still misdetect a cycle depending on load order. `test/utils/preload-esm.ts` (a `setupFiles` entry, `await import('@nestjs/core')` before anything else) works around the remaining case — see [nestjs/nest#17583](https://github.com/nestjs/nest/issues/17583).
+- `@nestjs/schematics` (dev-only, `nest generate`, never invoked here) requires `typescript >= 6`; installs use `--legacy-peer-deps` rather than adopting TypeScript 6/7 as a side effect of the Nest 12 migration.
 
 ## Request flow — booking an appointment
 

@@ -4,6 +4,26 @@
 
 Open work lives in the **2026-09-23 architecture review** section directly below. Everything after it is the closed history of the 2026-08-26 backend + architecture code review, kept for reference. Ordered by priority; work top to bottom within each phase.
 
+## Framework upgrade: NestJS 11 → 12 (ESM) — ✅ Done 2026-09-23
+
+Done out of priority order, at the owner's request ("do it now, before it's a bigger job"). NestJS 12 ships no CommonJS build, so this was a full CommonJS → ESM migration for the whole project, not a version bump: `package.json` `"type": "module"`, `tsconfig.json` `module`/`moduleResolution: "nodenext"`, every relative import given an explicit `.js` extension, and the TypeORM CLI's `data-source.ts` rewritten off `__dirname` (doesn't exist under ESM) onto `import.meta.url`.
+
+Found and fixed along the way — see `ARCHITECTURE.md` → "Key design decisions" → **ESM** for the details and the reasoning behind each fix:
+- Wrote our own `RedisThrottlerStorage` (same Lua-script algorithm as `@nest-lab/throttler-storage-redis`) since that package's peer range caps at Nest 11.
+- Circular entity relations (`Business` ↔ `Location`/`Users`/`Booking`) crashed at boot (`ReferenceError: Cannot access 'X' before initialization`) — fixed by typing every relation property `Relation<T>` (TypeORM's own type, sidesteps the crashing `emitDecoratorMetadata` reference).
+- Two class fields whose initializers read a constructor parameter (`AuthenticationService.dummyHash`, `AuthenticationGuard.authTypeGuardMap`) broke under ES2022's field-initializer-before-parameter-property ordering — moved into the constructor body.
+- `joi`, `compression`, `supertest` need a default import under real ESM (`import * as X` doesn't reliably work for CJS interop); `ioredis` needs a *named* import (`import { Redis }`, not the default) due to a TS/NodeNext resolution bug.
+- `isolatedModules: true` (required for ts-jest under ESM) surfaced several missing `import type` annotations (`ActiveUserData`, `ConfigType`, `Relation`, `ThrottlerStorageRecord`) that only crashed at test time, not at `nest build` time.
+- Jest bumped to v30: `@nestjs/throttler` (and other still-CommonJS Nest ecosystem packages) `require()` `@nestjs/common` internally, which needs Jest's own `require(esm)` support (added in v30) — plus a `preload-esm.ts` `setupFiles` entry to avoid a known false-positive cycle ([nestjs/nest#17583](https://github.com/nestjs/nest/issues/17583)). **Jest 30's `require(esm)` itself needs Node ≥ 24.9** (older Node falls back to the pre-v30 hard refusal) — CI's `test` job bumped from Node 22 to 24 for this. Docker's runtime image stays on `node:22-slim`: the compiled app boots fine there (verified), since it uses Node's own module loader directly, never Jest's.
+- `jest.fn()` etc. now come from `import { jest } from '@jest/globals'` — the global isn't reliably injected into real ESM module scope.
+- `.eslintrc.js` → `.eslintrc.cjs` (a plain `.js` file is loaded as ESM once `package.json` says `"type": "module"`, and `module.exports` isn't valid there).
+- `joi` bumped 17→18 (implements the new `StandardSchemaV1` interface `@nestjs/config@12`'s `validationSchema` option now requires).
+- `@nestjs/schematics`'s TypeScript 12.x peer (`>=6.0.0`) is skipped with `--legacy-peer-deps`: it's dev-only tooling we never invoke (`nest generate`), and bumping TypeScript itself was deliberately kept out of scope.
+
+Verified: 51 unit + 37 e2e tests, three consecutive e2e runs (no flakiness in the concurrent-booking test), both suites again under `TZ=Pacific/Auckland`, `nest build` + `tsc --noEmit` + lint all clean, Docker image builds and boots (`/health` ok, `/docs` 404 in production), a live sign-up request round-tripped end to end.
+
+**Not done, deliberately out of scope:** TypeScript 5.9 → 6/7 (a separate migration with its own unaudited breaking changes); the nodemailer 9→10 security-fix bump `npm audit` flagged (pre-existing, unrelated to this migration — see Phase D or file a fresh item).
+
 ---
 
 # 2026-09-23 architecture review — open
@@ -223,7 +243,7 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   Files: `src/iam/**`
 
 - [x] **HTTP surface for production**
-  **Done (M2).** `helmet` (CSP relaxed only while Swagger is on); CORS from `CORS_ORIGINS` (unset: any origin in dev, none in production); Swagger only outside production unless `SWAGGER_ENABLED=true`; `enableShutdownHooks()`; `/health` via `@nestjs/terminus` (pinned to v11: v12 is ESM-only and breaks Jest/CommonJS); port read from the app's `ConfigService`. Redis moved into a shared global `RedisModule` (`REDIS_CLIENT`), used by refresh-token storage and health, and ready for throttling/queues. Verified in the container: docs 404, security headers present, no CORS header for a foreign origin.
+  **Done (M2).** `helmet` (CSP relaxed only while Swagger is on); CORS from `CORS_ORIGINS` (unset: any origin in dev, none in production); Swagger only outside production unless `SWAGGER_ENABLED=true`; `enableShutdownHooks()`; `/health` via `@nestjs/terminus`; port read from the app's `ConfigService`. Redis moved into a shared global `RedisModule` (`REDIS_CLIENT`), used by refresh-token storage and health, and ready for throttling/queues. Verified in the container: docs 404, security headers present, no CORS header for a foreign origin.
   `enableCors()` allows every origin; Swagger `/docs` is public in production; no `helmet`; `enableShutdownHooks()` isn't called, so `RefreshTokenIdsStorage.onApplicationShutdown` (Redis `quit`) never runs; no `/health` endpoint (`@nestjs/terminus`: pg + redis).
   `main.ts` builds a `new ConfigService()` at module scope to read `APP_PORT`. It only works because importing `data-source.ts` calls `dotenv.config()` first, and the Joi default `3000` never applies. Use `app.get(ConfigService)`.
   Files: `src/main.ts`

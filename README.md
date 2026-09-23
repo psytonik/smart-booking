@@ -25,7 +25,7 @@ Product requirements: [Smart Booking — PRD](https://claude.ai/code/artifact/70
 
 | Concern | Choice |
 |---|---|
-| Framework | NestJS 11 (Express) |
+| Framework | NestJS 12 (Express, ESM) |
 | Language | TypeScript |
 | Database | PostgreSQL via TypeORM |
 | Ephemeral store | Redis (refresh-token storage) |
@@ -88,7 +88,10 @@ Required variables are validated at boot; a missing one fails startup immediatel
 ### 2. Dependencies and infrastructure
 
 ```bash
-npm install
+# --legacy-peer-deps: @nestjs/schematics (dev-only; we never run `nest
+# generate`) declares a `typescript >=6` peer that no 12.x release relaxes.
+# We stay on TypeScript 5.9 rather than take that upgrade as a side effect.
+npm install --legacy-peer-deps
 
 # Postgres and Redis (data persists in named volumes)
 docker compose up -d db redis

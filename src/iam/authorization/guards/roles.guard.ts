@@ -7,11 +7,11 @@ import {
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Role } from '../../../users/enums/role.enum';
-import { Users } from '../../../users/entities/user.entity';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { ActiveUserData } from '../../interface/active-user-data.interface';
-import { REQUEST_USER_KEY } from '../../constants/iam.constants';
+import { Role } from '../../../users/enums/role.enum.js';
+import { Users } from '../../../users/entities/user.entity.js';
+import { ROLES_KEY } from '../decorators/roles.decorator.js';
+import { ActiveUserData } from '../../interface/active-user-data.interface.js';
+import { REQUEST_USER_KEY } from '../../constants/iam.constants.js';
 
 @Injectable()
 export class RolesGuard implements CanActivate {

@@ -9,7 +9,7 @@ import {
   todayIn,
   wallClockToInstant,
   weekdayOf,
-} from './time';
+} from './time.js';
 
 describe('time helpers', () => {
   it('converts local wall-clock time to UTC, DST included', () => {

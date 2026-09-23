@@ -10,23 +10,23 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { BusinessService } from './business.service';
-import { CreateBusinessDto } from './dto/create-business.dto';
-import { ActiveUser } from '../iam/decorators/active-user.decorator';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { BusinessService } from './business.service.js';
+import { CreateBusinessDto } from './dto/create-business.dto.js';
+import { ActiveUser } from '../iam/decorators/active-user.decorator.js';
+import type { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Business } from './entities/business.entity';
-import { Auth } from '../iam/authentication/decorator/auth.decorator';
-import { AuthType } from '../iam/authentication/enums/auth-type.enum';
-import { Roles } from '../iam/authorization/decorators/roles.decorator';
-import { Role } from '../users/enums/role.enum';
-import { UpdateBusinessDto } from './dto/update-business.dto';
-import { Serialize } from '../common/serialization/serialize.decorator';
+import { Business } from './entities/business.entity.js';
+import { Auth } from '../iam/authentication/decorator/auth.decorator.js';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum.js';
+import { Roles } from '../iam/authorization/decorators/roles.decorator.js';
+import { Role } from '../users/enums/role.enum.js';
+import { UpdateBusinessDto } from './dto/update-business.dto.js';
+import { Serialize } from '../common/serialization/serialize.decorator.js';
 import {
   BusinessResponseDto,
   OpenedBusinessResponseDto,
-} from './dto/business-response.dto';
+} from './dto/business-response.dto.js';
 
 @ApiTags('Business')
 @Controller('business')

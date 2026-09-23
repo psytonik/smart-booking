@@ -1,4 +1,4 @@
-import { addMinutesTo, wallClockToInstant } from '../common/time';
+import { addMinutesTo, wallClockToInstant } from '../common/time.js';
 
 /**
  * Pure availability math: which start times can a service be booked at on

@@ -6,17 +6,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Service } from './entities/service.entity';
-import { StaffService } from './entities/staff-service.entity';
+import { Service } from './entities/service.entity.js';
+import { StaffService } from './entities/staff-service.entity.js';
 import {
   CreateServiceDto,
   SetOfferingsDto,
   UpdateServiceDto,
-} from './dto/service.dto';
-import { Business } from '../business/entities/business.entity';
-import { Users } from '../users/entities/user.entity';
-import { UsersService } from '../users/users.service';
-import { effectiveOffering, EffectiveOffering } from './offering';
+} from './dto/service.dto.js';
+import { Business } from '../business/entities/business.entity.js';
+import { Users } from '../users/entities/user.entity.js';
+import { UsersService } from '../users/users.service.js';
+import { effectiveOffering, EffectiveOffering } from './offering.js';
 
 @Injectable()
 export class ServicesService {

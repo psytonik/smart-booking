@@ -1,21 +1,21 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import * as Joi from 'joi';
-import { SchedulingModule } from './scheduling/scheduling.module';
-import { ServicesModule } from './services/services.module';
-import { UsersModule } from './users/users.module';
-import { NotificationsModule } from './notifications/notifications.module';
-import { IamModule } from './iam/iam.module';
-import { BusinessModule } from './business/business.module';
-import { RedisModule } from './redis/redis.module';
-import { HealthModule } from './health/health.module';
+import Joi from 'joi';
+import { SchedulingModule } from './scheduling/scheduling.module.js';
+import { ServicesModule } from './services/services.module.js';
+import { UsersModule } from './users/users.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { IamModule } from './iam/iam.module.js';
+import { BusinessModule } from './business/business.module.js';
+import { RedisModule } from './redis/redis.module.js';
+import { HealthModule } from './health/health.module.js';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from './redis/redis.constants';
-import { AuthenticationController } from './iam/authentication/authentication.controller';
+import { RedisThrottlerStorage } from './redis/redis-throttler-storage.service.js';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from './redis/redis.constants.js';
+import { AuthenticationController } from './iam/authentication/authentication.controller.js';
 
 @Module({
   imports: [
@@ -87,6 +87,12 @@ import { AuthenticationController } from './iam/authentication/authentication.co
     RedisModule,
     HealthModule,
     ThrottlerModule.forRootAsync({
+      // Explicit empty array: @nestjs/throttler@6.7's .d.ts imports
+      // ModuleMetadata via the `@nestjs/common/interfaces` subpath, which
+      // @nestjs/common@12's exports map no longer exposes under `nodenext`
+      // resolution — TS can't resolve that type and falls back to treating
+      // `imports` as required. Harmless either way: we don't need it here.
+      imports: [],
       inject: [ConfigService, REDIS_CLIENT],
       useFactory: (configService: ConfigService, redis: Redis) => {
         const ttl =
@@ -106,7 +112,7 @@ import { AuthenticationController } from './iam/authentication/authentication.co
                 context.getClass() !== AuthenticationController,
             },
           ],
-          storage: new ThrottlerStorageRedisService(redis),
+          storage: new RedisThrottlerStorage(redis),
         };
       },
     }),

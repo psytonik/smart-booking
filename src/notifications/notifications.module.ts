@@ -1,10 +1,10 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NotificationsService } from './notifications.service';
-import { NotificationsProcessor } from './notifications.processor';
-import { EmailSender } from './email.sender';
-import { NOTIFICATIONS_QUEUE } from './notifications.constants';
+import { NotificationsService } from './notifications.service.js';
+import { NotificationsProcessor } from './notifications.processor.js';
+import { EmailSender } from './email.sender.js';
+import { NOTIFICATIONS_QUEUE } from './notifications.constants.js';
 
 @Module({
   imports: [

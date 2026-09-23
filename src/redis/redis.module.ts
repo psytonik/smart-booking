@@ -1,7 +1,7 @@
 import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from './redis.constants';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from './redis.constants.js';
 
 /**
  * One shared Redis connection for the app (refresh-token sessions, rate

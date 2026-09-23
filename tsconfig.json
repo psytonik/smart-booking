@@ -1,12 +1,25 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    // ESM: NestJS 12 ships no CommonJS build, so the whole project (and its
+    // compiled output) is a real ES module now (package.json "type":
+    // "module"). NodeNext requires relative imports to spell out their
+    // extension (".js", even though the source is ".ts") and resolves
+    // node_modules packages by their own declared module type.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    // Required for ts-jest to compile each test file independently under
+    // ESM; also surfaces (at tsc level, not just at test time) every
+    // type-only import that isn't explicitly marked `import type`/`type`,
+    // which would otherwise crash at runtime as a missing named export.
+    "isolatedModules": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2017",
+    // NodeNext requires ES2022+.
+    "target": "es2022",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",

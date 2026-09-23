@@ -6,11 +6,12 @@ import {
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
-import { Business } from '../../business/entities/business.entity';
-import { Service } from '../../services/entities/service.entity';
-import { BookingStatus } from '../enums/booking-status.enum';
+import { Users } from '../../users/entities/user.entity.js';
+import { Business } from '../../business/entities/business.entity.js';
+import { Service } from '../../services/entities/service.entity.js';
+import { BookingStatus } from '../enums/booking-status.enum.js';
 
 /**
  * A client's appointment for a service with a staff member.
@@ -32,16 +33,16 @@ export class Booking {
   @ManyToOne(() => Business, (business) => business.bookings, {
     nullable: false,
   })
-  business: Business;
+  business: Relation<Business>;
 
   @ManyToOne(() => Users, (users) => users.booking, { nullable: false })
-  user: Users;
+  user: Relation<Users>;
 
   @ManyToOne(() => Users, { nullable: false })
-  staff: Users;
+  staff: Relation<Users>;
 
   @ManyToOne(() => Service, { nullable: false })
-  service: Service;
+  service: Relation<Service>;
 
   @Column({ type: 'timestamptz' })
   start_time: Date;

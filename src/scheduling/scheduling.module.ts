@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { WorkingHours } from './entities/working-hours.entity';
-import { ScheduleOverride } from './entities/schedule-override.entity';
-import { TimeBlock } from './entities/time-block.entity';
-import { Booking } from './entities/booking.entity';
-import { ScheduleService } from './schedule.service';
-import { AvailabilityService } from './availability.service';
-import { BookingService } from './booking.service';
-import { ScheduleController } from './schedule.controller';
-import { BookingController } from './booking.controller';
-import { BusinessModule } from '../business/business.module';
-import { UsersModule } from '../users/users.module';
-import { ServicesModule } from '../services/services.module';
-import { NotificationsModule } from '../notifications/notifications.module';
+import { WorkingHours } from './entities/working-hours.entity.js';
+import { ScheduleOverride } from './entities/schedule-override.entity.js';
+import { TimeBlock } from './entities/time-block.entity.js';
+import { Booking } from './entities/booking.entity.js';
+import { ScheduleService } from './schedule.service.js';
+import { AvailabilityService } from './availability.service.js';
+import { BookingService } from './booking.service.js';
+import { ScheduleController } from './schedule.controller.js';
+import { BookingController } from './booking.controller.js';
+import { BusinessModule } from '../business/business.module.js';
+import { UsersModule } from '../users/users.module.js';
+import { ServicesModule } from '../services/services.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 /**
  * Working hours, blocked time, availability and bookings: one bounded

@@ -1,7 +1,7 @@
-import './utils/low-auth-limit';
+import './utils/low-auth-limit.js';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { createTestApp, resetDatabase } from './utils/test-app';
+import request from 'supertest';
+import { createTestApp, resetDatabase } from './utils/test-app.js';
 
 describe('Rate limiting (e2e)', () => {
   let app: INestApplication;

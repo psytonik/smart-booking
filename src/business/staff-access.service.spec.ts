@@ -3,8 +3,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { StaffAccessService, StaffContext } from './staff-access.service';
-import { Role } from '../users/enums/role.enum';
+import { StaffAccessService, StaffContext } from './staff-access.service.js';
+import { Role } from '../users/enums/role.enum.js';
 
 describe('StaffAccessService', () => {
   const business = { id: 'biz', timezone: 'UTC' } as any;

@@ -1,12 +1,12 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { EmailSender } from './email.sender';
+import { EmailSender } from './email.sender.js';
 import {
   EMAIL_JOB,
   EmailJob,
   NOTIFICATIONS_QUEUE,
-} from './notifications.constants';
+} from './notifications.constants.js';
 
 @Processor(NOTIFICATIONS_QUEUE)
 export class NotificationsProcessor extends WorkerHost {

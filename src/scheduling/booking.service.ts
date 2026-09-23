@@ -8,19 +8,19 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
-import { Booking } from './entities/booking.entity';
-import { BookingStatus } from './enums/booking-status.enum';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { Users } from '../users/entities/user.entity';
-import { Business } from '../business/entities/business.entity';
-import { Service } from '../services/entities/service.entity';
-import { NotificationsService } from '../notifications/notifications.service';
-import { BusinessService } from '../business/business.service';
-import { UsersService } from '../users/users.service';
-import { ServicesService } from '../services/services.service';
-import { StaffContext } from '../business/staff-access.service';
-import { AvailabilityService, AvailableStart } from './availability.service';
-import { ReserveDto } from './dto/booking.dto';
+import { Booking } from './entities/booking.entity.js';
+import { BookingStatus } from './enums/booking-status.enum.js';
+import { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { Users } from '../users/entities/user.entity.js';
+import { Business } from '../business/entities/business.entity.js';
+import { Service } from '../services/entities/service.entity.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { BusinessService } from '../business/business.service.js';
+import { UsersService } from '../users/users.service.js';
+import { ServicesService } from '../services/services.service.js';
+import { StaffContext } from '../business/staff-access.service.js';
+import { AvailabilityService, AvailableStart } from './availability.service.js';
+import { ReserveDto } from './dto/booking.dto.js';
 import {
   addCalendarDays,
   addMinutesTo,
@@ -29,8 +29,8 @@ import {
   formatInTimeZone,
   parseDateTimeIn,
   todayIn,
-} from '../common/time';
-import { daysBetween } from './schedule.service';
+} from '../common/time.js';
+import { daysBetween } from './schedule.service.js';
 
 /** Postgres error for a violated exclusion constraint. */
 const EXCLUSION_VIOLATION = '23P01';

@@ -6,10 +6,11 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Role } from '../enums/role.enum';
-import { Business } from '../../business/entities/business.entity';
-import { Booking } from '../../scheduling/entities/booking.entity';
+import { Role } from '../enums/role.enum.js';
+import { Business } from '../../business/entities/business.entity.js';
+import { Booking } from '../../scheduling/entities/booking.entity.js';
 
 @Entity()
 export class Users {
@@ -27,13 +28,13 @@ export class Users {
 
   @OneToOne(() => Business, (business) => business.owner)
   @JoinColumn()
-  business: Business;
+  business: Relation<Business>;
 
   @ManyToOne(() => Business, (business) => business.employees)
-  workplace: Business;
+  workplace: Relation<Business>;
 
   @OneToMany(() => Booking, (bookings) => bookings.user)
-  booking: Booking[];
+  booking: Relation<Booking>[];
 
   @Column({ nullable: true })
   information: string;

@@ -13,23 +13,23 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../iam/authorization/decorators/roles.decorator';
-import { Role } from '../users/enums/role.enum';
-import { ActiveUser } from '../iam/decorators/active-user.decorator';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { Auth } from '../iam/authentication/decorator/auth.decorator';
-import { AuthType } from '../iam/authentication/enums/auth-type.enum';
-import { Serialize } from '../common/serialization/serialize.decorator';
-import { StaffAccessService } from '../business/staff-access.service';
-import { BusinessService } from '../business/business.service';
-import { ServicesService } from './services.service';
+import { Roles } from '../iam/authorization/decorators/roles.decorator.js';
+import { Role } from '../users/enums/role.enum.js';
+import { ActiveUser } from '../iam/decorators/active-user.decorator.js';
+import type { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { Auth } from '../iam/authentication/decorator/auth.decorator.js';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum.js';
+import { Serialize } from '../common/serialization/serialize.decorator.js';
+import { StaffAccessService } from '../business/staff-access.service.js';
+import { BusinessService } from '../business/business.service.js';
+import { ServicesService } from './services.service.js';
 import {
   CreateServiceDto,
   SetOfferingsDto,
   UpdateServiceDto,
-} from './dto/service.dto';
-import { ServiceResponseDto } from './dto/service-response.dto';
-import { Service } from './entities/service.entity';
+} from './dto/service.dto.js';
+import { ServiceResponseDto } from './dto/service-response.dto.js';
+import { Service } from './entities/service.entity.js';
 
 /** The owner's service catalog. */
 @ApiTags('Services')

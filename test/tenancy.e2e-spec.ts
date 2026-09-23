@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import {
   bearer,
@@ -9,7 +9,7 @@ import {
   resetDatabase,
   setWorkingHours,
   Tokens,
-} from './utils/test-app';
+} from './utils/test-app.js';
 
 describe('Tenant isolation (e2e)', () => {
   type Owner = {

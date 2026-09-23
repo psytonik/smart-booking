@@ -1,12 +1,12 @@
 import { Controller, Get, Body, Patch, Param, Query } from '@nestjs/common';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { UsersService } from './users.service.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from './enums/role.enum';
-import { Roles } from '../iam/authorization/decorators/roles.decorator';
-import { Serialize } from '../common/serialization/serialize.decorator';
-import { UserResponseDto } from './dto/user-response.dto';
+import { Role } from './enums/role.enum.js';
+import { Roles } from '../iam/authorization/decorators/roles.decorator.js';
+import { Serialize } from '../common/serialization/serialize.decorator.js';
+import { UserResponseDto } from './dto/user-response.dto.js';
 
 @ApiTags('Users')
 @Roles(Role.Admin)

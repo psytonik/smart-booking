@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import {
   availability,
   bearer,
@@ -11,7 +11,7 @@ import {
   setWorkingHours,
   signUp,
   Tokens,
-} from './utils/test-app';
+} from './utils/test-app.js';
 
 describe('Response shapes (e2e)', () => {
   let app: INestApplication;

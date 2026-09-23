@@ -1,5 +1,5 @@
-import { Role } from '../../users/enums/role.enum';
-import { TokenType } from '../authentication/enums/token-type.enum';
+import { Role } from '../../users/enums/role.enum.js';
+import { TokenType } from '../authentication/enums/token-type.enum.js';
 
 export interface ActiveUserData {
   sub: number;

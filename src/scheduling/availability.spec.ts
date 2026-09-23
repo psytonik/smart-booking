@@ -3,7 +3,7 @@ import {
   InvalidIntervalsError,
   normalizeIntervals,
   workingIntervalsFor,
-} from './availability';
+} from './availability.js';
 
 const at = (iso: string) => new Date(iso);
 const hhmm = (dates: Date[]) => dates.map((d) => d.toISOString().slice(11, 16));

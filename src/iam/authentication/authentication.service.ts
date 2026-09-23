@@ -4,27 +4,35 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { SignUpDto } from './dto/sign-up.dto';
+import { SignUpDto } from './dto/sign-up.dto.js';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Users } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity.js';
 import { Repository } from 'typeorm';
-import { HashingService } from '../hashing/hashing.service';
-import { SignInDto } from './dto/sign-in.dto';
+import { HashingService } from '../hashing/hashing.service.js';
+import { SignInDto } from './dto/sign-in.dto.js';
 import { JwtService } from '@nestjs/jwt';
-import jwtConfig from '../config/jwt.config';
-import { ConfigType } from '@nestjs/config';
-import { ActiveUserData } from '../interface/active-user-data.interface';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
+import jwtConfig from '../config/jwt.config.js';
+import type { ConfigType } from '@nestjs/config';
+import { ActiveUserData } from '../interface/active-user-data.interface.js';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import {
   InvalidatedRefreshTokenError,
   RefreshTokenIdsStorage,
-} from './storage/refresh-token-ids.storage';
+} from './storage/refresh-token-ids.storage.js';
 import { randomUUID } from 'crypto';
-import { TokenType } from './enums/token-type.enum';
-import { errorMessage } from '../../common/error-message';
+import { TokenType } from './enums/token-type.enum.js';
+import { errorMessage } from '../../common/error-message.js';
 
 @Injectable()
 export class AuthenticationService {
+  // Hash of a random secret, compared against when the email is unknown so
+  // sign-in costs the same bcrypt round either way. Assigned in the
+  // constructor body, not as a field initializer: under ES2022 output
+  // (required by NodeNext), field initializers run before constructor
+  // parameter properties are assigned, so `this.hashingService` would still
+  // be undefined at this point if declared as a field.
+  private readonly dummyHash: Promise<string>;
+
   constructor(
     @InjectRepository(Users) private readonly userRepository: Repository<Users>,
     private readonly hashingService: HashingService,
@@ -32,11 +40,10 @@ export class AuthenticationService {
     @Inject(jwtConfig.KEY)
     private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
     private readonly refreshTokenIdsStorage: RefreshTokenIdsStorage,
-  ) {}
+  ) {
+    this.dummyHash = this.hashingService.hash(randomUUID());
+  }
 
-  // Hash of a random secret, compared against when the email is unknown so
-  // sign-in costs the same bcrypt round either way.
-  private readonly dummyHash = this.hashingService.hash(randomUUID());
   async signUp(signUpDto: SignUpDto): Promise<Users> {
     try {
       const newUser: Users = new Users();

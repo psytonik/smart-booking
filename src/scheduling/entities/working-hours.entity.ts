@@ -4,8 +4,9 @@ import {
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity.js';
 
 /**
  * One interval of a staff member's weekly template, in local time of the
@@ -18,7 +19,7 @@ export class WorkingHours {
   id: number;
 
   @ManyToOne(() => Users, { nullable: false, onDelete: 'CASCADE' })
-  staff: Users;
+  staff: Relation<Users>;
 
   /** 0 = Sunday … 6 = Saturday. */
   @Column({ type: 'smallint' })

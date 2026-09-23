@@ -6,13 +6,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import jwtConfig from '../../config/jwt.config';
-import { ConfigType } from '@nestjs/config';
+import jwtConfig from '../../config/jwt.config.js';
+import type { ConfigType } from '@nestjs/config';
 import { Request } from 'express';
-import { REQUEST_USER_KEY } from '../../constants/iam.constants';
-import { ActiveUserData } from '../../interface/active-user-data.interface';
-import { TokenType } from '../enums/token-type.enum';
-import { errorMessage } from '../../../common/error-message';
+import { REQUEST_USER_KEY } from '../../constants/iam.constants.js';
+import { ActiveUserData } from '../../interface/active-user-data.interface.js';
+import { TokenType } from '../enums/token-type.enum.js';
+import { errorMessage } from '../../../common/error-message.js';
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
