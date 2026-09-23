@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Transform, Type } from 'class-transformer';
-import { BookingStatus } from '../enums/booking-status.enum';
-import { BusinessSummaryDto } from '../../business/dto/business-response.dto';
+import { BookingStatus } from '../enums/booking-status.enum.js';
+import { BusinessSummaryDto } from '../../business/dto/business-response.dto.js';
 
 export class IntervalResponseDto {
   @ApiProperty({ example: '09:00' })

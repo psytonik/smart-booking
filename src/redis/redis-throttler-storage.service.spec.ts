@@ -1,5 +1,5 @@
-import Redis from 'ioredis';
-import { RedisThrottlerStorage } from './redis-throttler-storage.service';
+import { Redis } from 'ioredis';
+import { RedisThrottlerStorage } from './redis-throttler-storage.service.js';
 
 /**
  * Runs against a real Redis (the same one docker-compose provides for

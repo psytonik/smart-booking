@@ -1,8 +1,9 @@
+import { jest } from '@jest/globals';
 import { UnauthorizedException } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService } from './users.service.js';
 
 describe('UsersService.findActiveUser', () => {
-  const repo = { findOneBy: jest.fn() };
+  const repo = { findOneBy: jest.fn<() => Promise<any>>() };
   const service = new UsersService(repo as any);
 
   beforeEach(() => repo.findOneBy.mockReset());

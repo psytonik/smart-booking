@@ -3,10 +3,11 @@ import {
   Entity,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   Unique,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
-import { Service } from './service.entity';
+import { Users } from '../../users/entities/user.entity.js';
+import { Service } from './service.entity.js';
 
 /**
  * A staff member offering a service, optionally with their own duration,
@@ -19,13 +20,13 @@ export class StaffService {
   id: number;
 
   @ManyToOne(() => Users, { nullable: false, onDelete: 'CASCADE' })
-  staff: Users;
+  staff: Relation<Users>;
 
   @ManyToOne(() => Service, (service) => service.offerings, {
     nullable: false,
     onDelete: 'CASCADE',
   })
-  service: Service;
+  service: Relation<Service>;
 
   @Column({ type: 'int', nullable: true })
   duration_minutes: number | null;

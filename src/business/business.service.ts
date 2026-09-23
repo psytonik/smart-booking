@@ -6,18 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Business } from './entities/business.entity';
+import { Business } from './entities/business.entity.js';
 import { DataSource, Repository } from 'typeorm';
-import { CreateBusinessDto } from './dto/create-business.dto';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { Users } from '../users/entities/user.entity';
-import { Role } from '../users/enums/role.enum';
-import { UsersService } from '../users/users.service';
+import { CreateBusinessDto } from './dto/create-business.dto.js';
+import { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { Users } from '../users/entities/user.entity.js';
+import { Role } from '../users/enums/role.enum.js';
+import { UsersService } from '../users/users.service.js';
 import slugify from 'slugify';
-import { GeocodingService } from './geocoding.service';
-import { Location } from './entities/location.entity';
-import { UpdateBusinessDto } from './dto/update-business.dto';
-import { errorMessage } from '../common/error-message';
+import { GeocodingService } from './geocoding.service.js';
+import { Location } from './entities/location.entity.js';
+import { UpdateBusinessDto } from './dto/update-business.dto.js';
+import { errorMessage } from '../common/error-message.js';
 
 @Injectable()
 export class BusinessService {

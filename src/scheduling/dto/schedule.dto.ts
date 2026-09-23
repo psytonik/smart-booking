@@ -18,7 +18,7 @@ import {
   CLOCK_TIME_MESSAGE,
   CLOCK_TIME_REGEX,
   WEEK_DAYS,
-} from '../../common/time';
+} from '../../common/time.js';
 
 export class IntervalDto {
   @ApiProperty({ example: '09:00' })

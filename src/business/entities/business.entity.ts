@@ -5,10 +5,11 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
-import { Location } from './location.entity';
-import { Booking } from '../../scheduling/entities/booking.entity';
+import { Users } from '../../users/entities/user.entity.js';
+import { Location } from './location.entity.js';
+import { Booking } from '../../scheduling/entities/booking.entity.js';
 
 @Entity()
 export class Business {
@@ -37,7 +38,7 @@ export class Business {
 
   @OneToOne(() => Location, (location: Location) => location.business)
   @JoinColumn()
-  coords: Location;
+  coords: Relation<Location>;
 
   @Column()
   email: string;
@@ -46,13 +47,13 @@ export class Business {
   phone_number: string;
 
   @OneToOne(() => Users, (user: Users) => user.business)
-  owner: Users;
+  owner: Relation<Users>;
 
   @OneToMany(() => Users, (user: Users) => user.workplace)
-  employees: Users[];
+  employees: Relation<Users>[];
 
   @OneToMany(() => Booking, (booking: Booking) => booking.business)
-  bookings: Booking[];
+  bookings: Relation<Booking>[];
 
   @Column({ default: false })
   featured: boolean;

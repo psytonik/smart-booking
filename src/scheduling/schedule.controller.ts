@@ -17,30 +17,30 @@ import {
   ApiTags,
   IntersectionType,
 } from '@nestjs/swagger';
-import { Roles } from '../iam/authorization/decorators/roles.decorator';
-import { Role } from '../users/enums/role.enum';
-import { ActiveUser } from '../iam/decorators/active-user.decorator';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { Serialize } from '../common/serialization/serialize.decorator';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { StaffAccessService } from '../business/staff-access.service';
-import { dayRange, formatClock } from '../common/time';
-import { ScheduleService, daysBetween } from './schedule.service';
-import { BookingService } from './booking.service';
+import { Roles } from '../iam/authorization/decorators/roles.decorator.js';
+import { Role } from '../users/enums/role.enum.js';
+import { ActiveUser } from '../iam/decorators/active-user.decorator.js';
+import type { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { Serialize } from '../common/serialization/serialize.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { StaffAccessService } from '../business/staff-access.service.js';
+import { dayRange, formatClock } from '../common/time.js';
+import { ScheduleService, daysBetween } from './schedule.service.js';
+import { BookingService } from './booking.service.js';
 import {
   CreateBlockDto,
   DateRangeQueryDto,
   SetOverrideDto,
   SetWorkingHoursDto,
   StaffTargetDto,
-} from './dto/schedule.dto';
+} from './dto/schedule.dto.js';
 import {
   AgendaResponseDto,
   BlockResponseDto,
   OverrideResponseDto,
   WorkingHoursResponseDto,
-} from './dto/responses.dto';
-import { TimeBlock } from './entities/time-block.entity';
+} from './dto/responses.dto.js';
+import { TimeBlock } from './entities/time-block.entity.js';
 
 class AgendaQueryDto extends IntersectionType(
   DateRangeQueryDto,

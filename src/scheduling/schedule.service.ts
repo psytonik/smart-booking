@@ -6,20 +6,20 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, Repository } from 'typeorm';
-import { WorkingHours } from './entities/working-hours.entity';
-import { ScheduleOverride } from './entities/schedule-override.entity';
-import { TimeBlock } from './entities/time-block.entity';
-import { Booking } from './entities/booking.entity';
-import { BookingStatus } from './enums/booking-status.enum';
-import { Users } from '../users/entities/user.entity';
-import { Business } from '../business/entities/business.entity';
+import { WorkingHours } from './entities/working-hours.entity.js';
+import { ScheduleOverride } from './entities/schedule-override.entity.js';
+import { TimeBlock } from './entities/time-block.entity.js';
+import { Booking } from './entities/booking.entity.js';
+import { BookingStatus } from './enums/booking-status.enum.js';
+import { Users } from '../users/entities/user.entity.js';
+import { Business } from '../business/entities/business.entity.js';
 import {
   BusyInterval,
   InvalidIntervalsError,
   normalizeIntervals,
   WorkingInterval,
   workingIntervalsFor,
-} from './availability';
+} from './availability.js';
 import {
   addCalendarDays,
   formatClock,
@@ -27,8 +27,8 @@ import {
   parseDateTimeIn,
   WEEK_DAYS,
   weekdayOf,
-} from '../common/time';
-import { IntervalDto, WorkingDayDto } from './dto/schedule.dto';
+} from '../common/time.js';
+import { IntervalDto, WorkingDayDto } from './dto/schedule.dto.js';
 
 export const MAX_RANGE_DAYS = 62;
 const MAX_BLOCK_DAYS = 31;

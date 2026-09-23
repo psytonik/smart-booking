@@ -5,9 +5,10 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Business } from '../../business/entities/business.entity';
-import { StaffService } from './staff-service.entity';
+import { Business } from '../../business/entities/business.entity.js';
+import { StaffService } from './staff-service.entity.js';
 
 /** Something a business offers, e.g. "Haircut, 30 min, 80 ILS". */
 @Entity()
@@ -16,7 +17,7 @@ export class Service {
   id: string;
 
   @ManyToOne(() => Business, { nullable: false, onDelete: 'CASCADE' })
-  business: Business;
+  business: Relation<Business>;
 
   @Column()
   name: string;
@@ -40,7 +41,7 @@ export class Service {
   active: boolean;
 
   @OneToMany(() => StaffService, (offering) => offering.service)
-  offerings: StaffService[];
+  offerings: Relation<StaffService>[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;

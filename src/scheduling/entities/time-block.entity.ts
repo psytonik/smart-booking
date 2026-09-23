@@ -4,8 +4,9 @@ import {
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity.js';
 
 /** Time a staff member takes out of their day: a break, an errand. */
 @Entity()
@@ -15,7 +16,7 @@ export class TimeBlock {
   id: number;
 
   @ManyToOne(() => Users, { nullable: false, onDelete: 'CASCADE' })
-  staff: Users;
+  staff: Relation<Users>;
 
   @Column({ type: 'timestamptz' })
   start_time: Date;

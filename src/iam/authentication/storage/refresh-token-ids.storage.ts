@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../../../redis/redis.constants.js';
 
 export class InvalidatedRefreshTokenError extends Error {}
 

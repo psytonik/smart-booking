@@ -6,11 +6,11 @@ import {
   HealthIndicatorService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
-import Redis from 'ioredis';
-import { Auth } from '../iam/authentication/decorator/auth.decorator';
-import { AuthType } from '../iam/authentication/enums/auth-type.enum';
-import { REDIS_CLIENT } from '../redis/redis.constants';
-import { errorMessage } from '../common/error-message';
+import { Redis } from 'ioredis';
+import { Auth } from '../iam/authentication/decorator/auth.decorator.js';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum.js';
+import { REDIS_CLIENT } from '../redis/redis.constants.js';
+import { errorMessage } from '../common/error-message.js';
 
 @ApiTags('Health')
 @Auth(AuthType.None)

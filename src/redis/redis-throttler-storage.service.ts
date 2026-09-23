@@ -2,9 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ThrottlerStorage } from '@nestjs/throttler';
 // Not re-exported from the package root; the interface file is the only
 // public path to the type.
-import { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-storage-record.interface';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from './redis.constants';
+import type { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-storage-record.interface.js';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from './redis.constants.js';
 
 /**
  * Redis-backed `ThrottlerStorage`. We write our own instead of depending on

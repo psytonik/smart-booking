@@ -9,7 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { CALENDAR_DAY_MESSAGE, CALENDAR_DAY_REGEX } from '../../common/time';
+import { CALENDAR_DAY_MESSAGE, CALENDAR_DAY_REGEX } from '../../common/time.js';
 
 export const MAX_AVAILABILITY_DAYS = 14;
 

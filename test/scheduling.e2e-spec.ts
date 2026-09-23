@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import {
   availability,
   bearer,
@@ -13,7 +13,7 @@ import {
   signUp,
   Tokens,
   utcTimes,
-} from './utils/test-app';
+} from './utils/test-app.js';
 
 describe('Scheduling: hours, overrides, blocks, staff (e2e)', () => {
   let app: INestApplication;

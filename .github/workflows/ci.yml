@@ -43,7 +43,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # --legacy-peer-deps: see the Dockerfile's build stage for why.
+      - run: npm ci --legacy-peer-deps
       - run: npm run lint:check
       - run: npm run build
       - run: npm test

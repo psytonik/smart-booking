@@ -1,13 +1,14 @@
+import { jest } from '@jest/globals';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
-import Redis from 'ioredis';
-import { REDIS_CLIENT } from '../../src/redis/redis.constants';
-import { AppModule } from '../../src/app.module';
-import { configureApp } from '../../src/app.setup';
-import { GeocodingService } from '../../src/business/geocoding.service';
-import { NotificationsService } from '../../src/notifications/notifications.service';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../../src/redis/redis.constants.js';
+import { AppModule } from '../../src/app.module.js';
+import { configureApp } from '../../src/app.setup.js';
+import { GeocodingService } from '../../src/business/geocoding.service.js';
+import { NotificationsService } from '../../src/notifications/notifications.service.js';
 
 export const PASSWORD = 'password123';
 

@@ -1,13 +1,13 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { SignUpDto } from './dto/sign-up.dto';
-import { AuthenticationService } from './authentication.service';
-import { SignInDto } from './dto/sign-in.dto';
+import { SignUpDto } from './dto/sign-up.dto.js';
+import { AuthenticationService } from './authentication.service.js';
+import { SignInDto } from './dto/sign-in.dto.js';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Auth } from './decorator/auth.decorator';
-import { AuthType } from './enums/auth-type.enum';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { Serialize } from '../../common/serialization/serialize.decorator';
-import { UserResponseDto } from '../../users/dto/user-response.dto';
+import { Auth } from './decorator/auth.decorator.js';
+import { AuthType } from './enums/auth-type.enum.js';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { Serialize } from '../../common/serialization/serialize.decorator.js';
+import { UserResponseDto } from '../../users/dto/user-response.dto.js';
 
 @ApiTags('Authentication')
 @Auth(AuthType.None)

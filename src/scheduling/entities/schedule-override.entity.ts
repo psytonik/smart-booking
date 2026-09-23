@@ -4,8 +4,9 @@ import {
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Users } from '../../users/entities/user.entity';
+import { Users } from '../../users/entities/user.entity.js';
 
 /**
  * Replaces the weekly template on one date. A row with null minutes marks
@@ -18,7 +19,7 @@ export class ScheduleOverride {
   id: number;
 
   @ManyToOne(() => Users, { nullable: false, onDelete: 'CASCADE' })
-  staff: Users;
+  staff: Relation<Users>;
 
   /** Calendar day in the business timezone. */
   @Column({ type: 'date' })

@@ -1,6 +1,11 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { createTestApp, resetDatabase, signIn, signUp } from './utils/test-app';
+import request from 'supertest';
+import {
+  createTestApp,
+  resetDatabase,
+  signIn,
+  signUp,
+} from './utils/test-app.js';
 
 describe('Authentication (e2e)', () => {
   let app: INestApplication;

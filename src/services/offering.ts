@@ -1,5 +1,5 @@
-import { Service } from './entities/service.entity';
-import { StaffService } from './entities/staff-service.entity';
+import { Service } from './entities/service.entity.js';
+import { StaffService } from './entities/staff-service.entity.js';
 
 /** What booking a service with one staff member actually means. */
 export interface EffectiveOffering {

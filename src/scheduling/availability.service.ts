@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Business } from '../business/entities/business.entity';
-import { EffectiveOffering } from '../services/offering';
-import { addMinutesTo, dayRange } from '../common/time';
-import { availableStarts } from './availability';
-import { ScheduleService } from './schedule.service';
+import { Business } from '../business/entities/business.entity.js';
+import { EffectiveOffering } from '../services/offering.js';
+import { addMinutesTo, dayRange } from '../common/time.js';
+import { availableStarts } from './availability.js';
+import { ScheduleService } from './schedule.service.js';
 
 export interface AvailableStart {
   start: Date;

@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Service } from './entities/service.entity';
-import { StaffService } from './entities/staff-service.entity';
-import { ServicesService } from './services.service';
+import { Service } from './entities/service.entity.js';
+import { StaffService } from './entities/staff-service.entity.js';
+import { ServicesService } from './services.service.js';
 import {
   PublicServicesController,
   ServicesController,
-} from './services.controller';
-import { BusinessModule } from '../business/business.module';
-import { UsersModule } from '../users/users.module';
+} from './services.controller.js';
+import { BusinessModule } from '../business/business.module.js';
+import { UsersModule } from '../users/users.module.js';
 
 @Module({
   imports: [

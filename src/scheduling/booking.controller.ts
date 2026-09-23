@@ -9,15 +9,15 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ActiveUser } from '../iam/decorators/active-user.decorator';
-import { ActiveUserData } from '../iam/interface/active-user-data.interface';
-import { Auth } from '../iam/authentication/decorator/auth.decorator';
-import { AuthType } from '../iam/authentication/enums/auth-type.enum';
-import { Serialize } from '../common/serialization/serialize.decorator';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { BookingService } from './booking.service';
-import { AvailabilityQueryDto, ReserveDto } from './dto/booking.dto';
-import { AvailableStartDto, BookingDetailsDto } from './dto/responses.dto';
+import { ActiveUser } from '../iam/decorators/active-user.decorator.js';
+import type { ActiveUserData } from '../iam/interface/active-user-data.interface.js';
+import { Auth } from '../iam/authentication/decorator/auth.decorator.js';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum.js';
+import { Serialize } from '../common/serialization/serialize.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { BookingService } from './booking.service.js';
+import { AvailabilityQueryDto, ReserveDto } from './dto/booking.dto.js';
+import { AvailableStartDto, BookingDetailsDto } from './dto/responses.dto.js';
 
 /** The client side: finding a time and booking it. */
 @ApiTags('Booking')

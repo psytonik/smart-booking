@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import {
   availability,
@@ -13,7 +13,7 @@ import {
   signUp,
   Tokens,
   utcTimes,
-} from './utils/test-app';
+} from './utils/test-app.js';
 
 describe('Booking (e2e)', () => {
   let app: INestApplication;

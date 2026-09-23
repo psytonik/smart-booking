@@ -1,6 +1,7 @@
+import { jest } from '@jest/globals';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { BusinessService } from './business.service';
-import { Role } from '../users/enums/role.enum';
+import { BusinessService } from './business.service.js';
+import { Role } from '../users/enums/role.enum.js';
 
 describe('BusinessService.openBusiness', () => {
   const dto = {
@@ -33,12 +34,12 @@ describe('BusinessService.openBusiness', () => {
     };
     const businessRepo = {
       findOne: jest.fn(async () => ownedBusiness),
-      create: jest.fn((data) => ({ ...data })),
+      create: jest.fn((data: any) => ({ ...data })),
       createQueryBuilder: () => queryBuilder,
     };
     const dataSource = {
-      transaction: jest.fn(async (work) =>
-        work({ save: jest.fn(async (entity) => saved.push(entity)) }),
+      transaction: jest.fn(async (work: any) =>
+        work({ save: jest.fn(async (entity: any) => saved.push(entity)) }),
       ),
     };
 

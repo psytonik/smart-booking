@@ -5,7 +5,7 @@ import {
   EMAIL_JOB,
   EmailJob,
   NOTIFICATIONS_QUEUE,
-} from './notifications.constants';
+} from './notifications.constants.js';
 
 /**
  * Queues outgoing notifications; a worker sends them with retries, so a

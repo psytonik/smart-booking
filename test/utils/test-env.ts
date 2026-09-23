@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import * as dotenv from 'dotenv';
 
 // Loaded before every e2e file and by the global setup. Always points at a
 // dedicated database so e2e runs can never touch the development one.
@@ -31,8 +32,7 @@ const defaults: Record<string, string> = {
 };
 
 // Real values from the environment or .env win over these placeholders.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-require('dotenv').config({ quiet: true });
+dotenv.config({ quiet: true });
 for (const [key, value] of Object.entries(defaults)) {
   process.env[key] ??= value;
 }

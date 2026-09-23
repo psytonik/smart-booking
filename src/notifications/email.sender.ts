@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodeMailer from 'nodemailer';
-import { EmailJob } from './notifications.constants';
+import { EmailJob } from './notifications.constants.js';
 
 /** Sends one email over Gmail OAuth2 SMTP. Called by the queue worker. */
 @Injectable()
