@@ -93,6 +93,8 @@ Each feature needs its Phase E/F questions answered first. The order follows RIC
 
 C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) · C8 TS strictness per module (3) · C3 admin branches (2.5; fixed for free inside C2) · D cleanup bundle (1.25).
 
+**✅ All done 2026-09-23** (C7 in M2, C3 in M3, C8/C9/D in the cleanup pass).
+
 ### Sensitivity check
 
 - If B1 (timezones) turns out 2× bigger (l → xl), its RICE drops to about 18. It still belongs in M3, because every day of real bookings stored in server-local time makes the migration harder.
@@ -231,21 +233,30 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   **Done (M2, pulled forward: the e2e harness needed it).** The app uses `TypeOrmModule.forRootAsync` with the validated `ConfigService` and `autoLoadEntities`; `data-source.ts` is CLI-only. SQL logging only in `development` (or `DEBUG_SQL=1`).
   `data-source.ts` reads `process.env` + `dotenv` directly, bypassing the Joi-validated `ConfigService`. Use `TypeOrmModule.forRootAsync({ inject: [ConfigService] })` for the app; keep a thin `data-source.ts` for the CLI only.
 
-- [ ] **TypeScript strictness**
+- [x] **TypeScript strictness**
+  **Done.** `"strict": true` project-wide (instead of per module: only 23 errors once measured), with `strictPropertyInitialization` off because TypeORM/class-transformer populate entities and DTOs. Added `@types/compression` and `@types/pg`, plus an `errorMessage()` helper for `unknown` catch values.
   `strictNullChecks: false` and `noImplicitAny: false` hide exactly the class of bugs found above (null users, untyped `reportDate`, `currentUser`, `day`, `id`). Enable them step by step (per module).
 
-- [ ] **Update `ARCHITECTURE.md`**
+- [x] **Update `ARCHITECTURE.md`**
+  **Done.** Rewritten for the current code: modules and ownership, data model (staff, timezone, statuses), design decisions (time, tenancy, auth, consistency, output), booking flow with the queue, and testing.
   It still describes the pre-fix state: dashed "reaches into" arrows, `eager: true` on `Business`, a booking flow with no transaction, and a "Known issues" section that is closed. Sync it with the code.
 
 ## Phase D — Low (cleanup)
 
-- [ ] Dead code: `CreateUserDto` (empty), `NotifyEmailDto` (unused). Keep `repl.ts` but document it (it's currently the only way to create an admin).
-- [ ] `@types/nodemailer` is in `dependencies`; move it to `devDependencies`.
-- [ ] `closeOpenedSlotsByDate` calls `findUser` twice (directly and inside `getOpenedSlotByDay`).
-- [ ] `setDailySlots`: `new Date(x) || startOfToday()`. A `Date` object is always truthy, so the fallback is dead code.
-- [ ] Error messages use informal wording ("It is not your business dude", "Dude you can update past dates !"; the latter also says the opposite of what it means). Use neutral, consistent messages.
-- [ ] String literal `user.role == 'admin'` → `Role.Admin`; `==` → `===`.
-- [ ] `RolesGuard` crashes if a route has `@Roles` together with `@Auth(AuthType.None)` (`user` is undefined). Guard against it.
+- [x] Dead code: `CreateUserDto` (empty), `NotifyEmailDto` (unused). Keep `repl.ts` but document it (it's currently the only way to create an admin).
+  **Done.** Both removed. `repl.ts` is documented and runnable via `npm run repl`. The documented command was broken (`UserRepository` → the real token is `UsersRepository`, verified).
+- [x] `@types/nodemailer` is in `dependencies`; move it to `devDependencies`.
+  **Done (M2).**
+- [x] `closeOpenedSlotsByDate` calls `findUser` twice (directly and inside `getOpenedSlotByDay`).
+  **Done (M1/M3)**, replaced by `closeDay`.
+- [x] `setDailySlots`: `new Date(x) || startOfToday()`. A `Date` object is always truthy, so the fallback is dead code.
+  **Done (M1)**, removed.
+- [x] Error messages use informal wording ("It is not your business dude", "Dude you can update past dates !"; the latter also says the opposite of what it means). Use neutral, consistent messages.
+  **Done.** No informal messages left; wording made consistent.
+- [x] String literal `user.role == 'admin'` → `Role.Admin`; `==` → `===`.
+  **Done (M3)**, the code is gone.
+- [x] `RolesGuard` crashes if a route has `@Roles` together with `@Auth(AuthType.None)` (`user` is undefined). Guard against it.
+  **Done (M4)**, returns 401.
 
 ## Phase E — Features to finish (decided)
 

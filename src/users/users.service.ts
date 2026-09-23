@@ -26,7 +26,7 @@ export class UsersService {
    * Resolves the authenticated caller from the JWT `sub` claim. A valid token
    * whose user has since been deleted is treated as unauthenticated.
    */
-  async findActiveUser(id: number): Promise<Users> {
+  async findActiveUser(id: number | undefined): Promise<Users> {
     const user = id ? await this.userRepository.findOneBy({ id }) : null;
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
@@ -50,7 +50,7 @@ export class UsersService {
   }
 
   async findOne(id: number): Promise<Partial<Users>> {
-    const user: Users = await this.userRepository.findOneBy({ id });
+    const user = await this.userRepository.findOneBy({ id });
     if (!user) {
       throw new NotFoundException(`User Not Found`);
     }
@@ -67,6 +67,6 @@ export class UsersService {
     if (Object.keys(updateUserDto).length > 0) {
       await this.userRepository.update(id, updateUserDto);
     }
-    return await this.userRepository.findOneBy({ id });
+    return await this.userRepository.findOneByOrFail({ id });
   }
 }

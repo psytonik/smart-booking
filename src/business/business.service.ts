@@ -17,6 +17,7 @@ import slugify from 'slugify';
 import { GeocodingService } from './geocoding.service';
 import { Location } from './entities/location.entity';
 import { UpdateBusinessDto } from './dto/update-business.dto';
+import { errorMessage } from '../common/error-message';
 
 @Injectable()
 export class BusinessService {
@@ -67,7 +68,7 @@ export class BusinessService {
       ));
     } catch (err) {
       throw new BadRequestException(
-        `Could not resolve the given address: ${err.message}`,
+        `Could not resolve the given address: ${errorMessage(err)}`,
       );
     }
 
@@ -124,7 +125,7 @@ export class BusinessService {
       .getMany();
   }
 
-  async getBusinessBySlug(slug: string): Promise<Business> {
+  async getBusinessBySlug(slug: string): Promise<Business | null> {
     return await this.businessRepo
       .createQueryBuilder('business')
       .select([
@@ -146,7 +147,7 @@ export class BusinessService {
     updateData: UpdateBusinessDto,
     user: ActiveUserData,
   ): Promise<Business> {
-    const business: Business = await this.getBusinessBySlug(slug);
+    const business = await this.getBusinessBySlug(slug);
     if (!business) {
       throw new NotFoundException('Wrong slug or business not found');
     }
@@ -189,15 +190,16 @@ export class BusinessService {
       } catch (err) {
         // Same as on create: an address we can't resolve is the client's to fix.
         throw new BadRequestException(
-          `Could not resolve the given address: ${err.message}`,
+          `Could not resolve the given address: ${errorMessage(err)}`,
         );
       }
-      previousLocation = (
-        await this.businessRepo.findOne({
-          where: { id: business.id },
-          relations: { coords: true },
-        })
-      )?.coords;
+      previousLocation =
+        (
+          await this.businessRepo.findOne({
+            where: { id: business.id },
+            relations: { coords: true },
+          })
+        )?.coords ?? null;
       updatedFields.address = resolved.formattedAddress;
       updatedFields.coords = resolved.coords;
     }

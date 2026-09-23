@@ -1,11 +1,11 @@
 import { repl } from '@nestjs/core';
 import { AppModule } from './app.module';
 
+// Interactive Nest REPL against the configured database: `npm run repl`.
+// Until admin tools exist (roadmap F3) this is how to make someone an admin:
+//   await get("UsersRepository").update({ email: "you@example.com" }, { role: "admin" })
 async function bootstrap() {
   await repl(AppModule);
 }
 
-bootstrap().then();
-
-// npm run start:dev -- --entryFile repl
-// await get("UserRepository").update({ id: 1}, {role: 'admin'})
+bootstrap();

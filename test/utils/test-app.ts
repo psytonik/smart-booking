@@ -128,6 +128,13 @@ export async function makeEmployee(
   return { tokens: await signIn(app, email), userId: rows[0].id };
 }
 
+/** The parts of a slot response the tests look at. */
+export interface SlotBody {
+  status: string;
+  start_time: string;
+  staff: { id: number };
+}
+
 export const bearer = (tokens: Tokens) => `Bearer ${tokens.accessToken}`;
 
 /** A Monday far enough ahead to never be in the past. */

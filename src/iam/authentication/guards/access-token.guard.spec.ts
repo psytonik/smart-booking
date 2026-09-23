@@ -24,7 +24,7 @@ describe('AccessTokenGuard', () => {
     });
 
   const contextFor = (token?: string) => {
-    const request = {
+    const request: Record<string, unknown> = {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     };
     return {

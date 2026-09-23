@@ -11,7 +11,7 @@ export const dataSourceOptions = {
   username: process.env.POSTGRES_USER,
   database: process.env.POSTGRES_DB,
   host: process.env.POSTGRES_HOST,
-  port: +process.env.POSTGRES_PORT,
+  port: Number(process.env.POSTGRES_PORT),
   entities: [join(__dirname, '..') + '/**/*.entity.js'],
   migrations: [join(__dirname, '..', 'migrations', '*.js')],
   synchronize: false,

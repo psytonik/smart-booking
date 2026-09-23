@@ -10,6 +10,7 @@ import Redis from 'ioredis';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 import { REDIS_CLIENT } from '../redis/redis.constants';
+import { errorMessage } from '../common/error-message';
 
 @ApiTags('Health')
 @Auth(AuthType.None)
@@ -37,7 +38,7 @@ export class HealthController {
       await this.redis.ping();
       return indicator.up();
     } catch (e) {
-      return indicator.down({ message: e.message });
+      return indicator.down({ message: errorMessage(e) });
     }
   }
 }

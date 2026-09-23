@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { ReserveSlotDto } from './dto/reserveSlot.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Business } from '../business/entities/business.entity';
 import { DataSource, Repository } from 'typeorm';
 import { Slot } from '../slot-management/entities/slot.entity';
 import { SlotStatus } from '../slot-management/enums/slotStatus.enum';
@@ -43,7 +42,7 @@ export class BookingService {
     businessId: string,
     user: ActiveUserData,
   ): Promise<Booking> {
-    const business: Business = await this.businessService.findById(businessId);
+    const business = await this.businessService.findById(businessId);
     if (!business) {
       throw new NotFoundException('Business not found');
     }
@@ -140,9 +139,9 @@ export class BookingService {
     return this.slotQueries.findAvailableSlots(businessId, start, end, staffId);
   }
 
-  async findReservedSlotById(id, currentUser: ActiveUserData) {
+  async findReservedSlotById(id: string, currentUser: ActiveUserData) {
     const user: Users = await this.usersService.findActiveUser(currentUser.sub);
-    const reservedSlotByClient: Booking = await this.bookingRepository
+    const reservedSlotByClient = await this.bookingRepository
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.business', 'business')
@@ -157,13 +156,13 @@ export class BookingService {
     }
 
     if (reservedSlotByClient.user.id !== user.id) {
-      throw new ForbiddenException(`this is not your reservation`);
+      throw new ForbiddenException('This is not your reservation');
     }
 
     return reservedSlotByClient;
   }
 
-  async cancelReservation(id, currentUser: ActiveUserData) {
+  async cancelReservation(id: string, currentUser: ActiveUserData) {
     if (!id) {
       throw new NotFoundException('Slot not found');
     }
@@ -171,10 +170,7 @@ export class BookingService {
       id,
       currentUser,
     );
-    if (!slotToCancel) {
-      throw new NotFoundException('Slot not found');
-    }
-    const slot: Slot = await this.slotQueries.findSlotByBooking(slotToCancel);
+    const slot = await this.slotQueries.findSlotByBooking(slotToCancel);
 
     if (!slot) {
       throw new NotFoundException('Slot not found');

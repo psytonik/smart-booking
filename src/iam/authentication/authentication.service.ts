@@ -21,6 +21,7 @@ import {
 } from './storage/refresh-token-ids.storage';
 import { randomUUID } from 'crypto';
 import { TokenType } from './enums/token-type.enum';
+import { errorMessage } from '../../common/error-message';
 
 @Injectable()
 export class AuthenticationService {
@@ -36,17 +37,17 @@ export class AuthenticationService {
   // Hash of a random secret, compared against when the email is unknown so
   // sign-in costs the same bcrypt round either way.
   private readonly dummyHash = this.hashingService.hash(randomUUID());
-  async signUp(signUpDto: SignUpDto): Promise<Omit<Users, 'password'>> {
+  async signUp(signUpDto: SignUpDto): Promise<Users> {
     try {
       const newUser: Users = new Users();
       newUser.email = signUpDto.email;
       newUser.password = await this.hashingService.hash(signUpDto.password);
-      const savedUser = await this.userRepository.save(newUser);
-      delete savedUser.password;
-      return savedUser;
+      // Response DTOs never expose the password; returning the saved entity
+      // is safe.
+      return await this.userRepository.save(newUser);
     } catch (e) {
       const pgUniqueViolationErrorCode = '23505';
-      if (e.code === pgUniqueViolationErrorCode) {
+      if ((e as { code?: string }).code === pgUniqueViolationErrorCode) {
         throw new ConflictException(
           `User with this email ${signUpDto.email} already exists`,
         );
@@ -56,7 +57,7 @@ export class AuthenticationService {
   }
 
   async signIn(signInDto: SignInDto) {
-    const user: Users = await this.userRepository
+    const user = await this.userRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
       .where('user.email = :email', { email: signInDto.email })
@@ -92,7 +93,7 @@ export class AuthenticationService {
     );
   }
 
-  async generateTokens(user) {
+  async generateTokens(user: Users) {
     const refreshTokenId = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.signToken<Partial<ActiveUserData>>(
@@ -120,7 +121,7 @@ export class AuthenticationService {
     const { sub, refreshTokenId } = await this.verifyRefreshToken(
       refreshTokenDto.refreshToken,
     );
-    const user: Users = await this.userRepository.findOneBy({ id: sub });
+    const user = await this.userRepository.findOneBy({ id: sub });
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
@@ -157,7 +158,7 @@ export class AuthenticationService {
         issuer: this.jwtConfiguration.issuer,
       });
     } catch (e) {
-      throw new UnauthorizedException(e.message);
+      throw new UnauthorizedException(errorMessage(e));
     }
     if (payload.type !== TokenType.Refresh) {
       throw new UnauthorizedException('Invalid token type');

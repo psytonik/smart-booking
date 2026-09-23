@@ -118,6 +118,17 @@ npm run start:prod
 
 The API is served at `http://localhost:<APP_PORT>`, with Swagger docs at `/docs` (outside production) and a health check at `/health` (Postgres + Redis).
 
+### Creating an admin
+
+There is no admin API yet (roadmap F3). Use the Nest REPL against your configured database:
+
+```bash
+npm run repl
+> await get("UsersRepository").update({ email: "you@example.com" }, { role: "admin" })
+```
+
+The REPL boots the whole app, including the email queue worker.
+
 ### Running everything in Docker
 
 ```bash

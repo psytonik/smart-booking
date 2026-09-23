@@ -12,6 +12,7 @@ import { Request } from 'express';
 import { REQUEST_USER_KEY } from '../../constants/iam.constants';
 import { ActiveUserData } from '../../interface/active-user-data.interface';
 import { TokenType } from '../enums/token-type.enum';
+import { errorMessage } from '../../../common/error-message';
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
@@ -34,7 +35,7 @@ export class AccessTokenGuard implements CanActivate {
         issuer: this.jwtConfiguration.issuer,
       });
     } catch (e) {
-      throw new UnauthorizedException(e.message);
+      throw new UnauthorizedException(errorMessage(e));
     }
     // Refresh tokens are signed with the same key; without this check they
     // would be accepted here and carry no email/role claims.

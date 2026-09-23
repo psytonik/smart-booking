@@ -40,5 +40,5 @@ export class Slot {
 
   @OneToOne(() => Booking, (booking) => booking.slot)
   @JoinColumn()
-  booking_by: Booking;
+  booking_by: Booking | null;
 }

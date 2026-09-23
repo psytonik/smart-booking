@@ -89,18 +89,19 @@ import { AuthenticationController } from './iam/authentication/authentication.co
     ThrottlerModule.forRootAsync({
       inject: [ConfigService, REDIS_CLIENT],
       useFactory: (configService: ConfigService, redis: Redis) => {
-        const ttl = configService.get<number>('THROTTLE_TTL_SECONDS') * 1000;
+        const ttl =
+          configService.getOrThrow<number>('THROTTLE_TTL_SECONDS') * 1000;
         return {
           throttlers: [
             {
               name: 'default',
               ttl,
-              limit: configService.get<number>('THROTTLE_LIMIT'),
+              limit: configService.getOrThrow<number>('THROTTLE_LIMIT'),
             },
             {
               name: 'auth',
               ttl,
-              limit: configService.get<number>('AUTH_THROTTLE_LIMIT'),
+              limit: configService.getOrThrow<number>('AUTH_THROTTLE_LIMIT'),
               skipIf: (context) =>
                 context.getClass() !== AuthenticationController,
             },

@@ -8,6 +8,7 @@ import {
   FUTURE_DAY,
   resetDatabase,
   signUp,
+  SlotBody,
   Tokens,
 } from './utils/test-app';
 
@@ -73,7 +74,7 @@ describe('Response shapes (e2e)', () => {
       .get(`/slots/${FUTURE_DAY}`)
       .set('Authorization', bearer(owner.tokens))
       .expect(200);
-    const booked = res.body.find((s) => s.status === 'booked');
+    const booked = res.body.find((s: SlotBody) => s.status === 'booked');
     expect(booked.booking).toEqual({
       id: bookingId,
       client: { id: expect.any(Number), email: 'client@e2e.io' },

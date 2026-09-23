@@ -9,6 +9,7 @@ import {
   makeEmployee,
   resetDatabase,
   signUp,
+  SlotBody,
   Tokens,
 } from './utils/test-app';
 
@@ -67,7 +68,9 @@ describe('Scheduling: timezones and staff (e2e)', () => {
       .expect(200);
 
     expect(day.body).toHaveLength(3);
-    expect(day.body.every((s) => s.staff.id === employee.userId)).toBe(true);
+    expect(
+      day.body.every((s: SlotBody) => s.staff.id === employee.userId),
+    ).toBe(true);
   });
 
   it("does not let an employee manage the owner's slots", async () => {
@@ -89,9 +92,9 @@ describe('Scheduling: timezones and staff (e2e)', () => {
       .get(`/slots/${FUTURE_DAY}?staffId=${employee.userId}`)
       .set(auth(owner.tokens))
       .expect(200);
-    expect(anna.body.find((s) => s.status === 'booked').start_time).toBe(
-      `${FUTURE_DAY}T14:00:00.000Z`,
-    );
+    expect(
+      anna.body.find((s: SlotBody) => s.status === 'booked').start_time,
+    ).toBe(`${FUTURE_DAY}T14:00:00.000Z`);
   });
 
   it('falls back to any free staff member and accepts explicit offsets', async () => {
@@ -117,7 +120,7 @@ describe('Scheduling: timezones and staff (e2e)', () => {
       })
       .expect(200);
 
-    const statuses = res.body.map((s) => s.status);
+    const statuses = res.body.map((s: SlotBody) => s.status);
     // 09:00 booked (kept), 10:00 free, 11:00 break, 12:00 free.
     expect(statuses).toEqual(['booked', 'available', 'break', 'available']);
   });
