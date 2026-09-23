@@ -45,6 +45,10 @@ export class BusinessResponseDto {
   @Expose()
   timezone: string;
 
+  @ApiProperty({ example: 'EUR' })
+  @Expose()
+  currency: string;
+
   @ApiPropertyOptional({ type: LocationResponseDto })
   @Expose()
   @Type(() => LocationResponseDto)
@@ -79,4 +83,8 @@ export class BusinessSummaryDto {
   @ApiProperty()
   @Expose()
   timezone: string;
+
+  @ApiProperty()
+  @Expose()
+  currency: string;
 }

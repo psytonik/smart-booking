@@ -7,17 +7,19 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the module map, entity model, and
 ## Core concepts
 
 - **Users** have a `role`: `client` (default, books appointments), `business` (owns a storefront), `employee` (works at one), or `admin`.
-- **Business** is a storefront a `client` opens via `POST /business/open`, which promotes them to the `business` role. A business has one owner, any number of employees, a geocoded address, and an IANA **timezone** (required, e.g. `Europe/Berlin`).
-- **Slot** is a bookable time window belonging to one **staff member** (the owner or an employee) of a business. Slots are generated in bulk (`POST /slots/daily` or `/weekly`) from working hours given in the business's local time, with a lunch break carved out. They are stored as UTC instants, so daylight-saving days are handled correctly. Status is `available`, `booked` or `break`.
-- **Booking** links a `client` to a `Slot`. Clients can pick a staff member (`staffId`) or take whoever is free. Times without an offset (`2030-01-07T09:00`) are read as local business time. Reserving is transactional and row-locked, so two customers can't book the same slot.
+- **Business** is a storefront a `client` opens via `POST /business/open`, which promotes them to the `business` role. A business has one owner, any number of employees (staff), a geocoded address, an IANA **timezone** and a **currency** (both required).
+- **Service** is something the business offers: name, duration, buffer (cleanup time after each appointment) and a price shown to clients (clients never pay in the app). The owner chooses which staff offer it, and each staff member can have their own duration, buffer or price.
+- **Working hours** are each staff member's weekly template (split shifts allowed), plus **overrides** for specific dates (custom hours or a day off) and **blocks** they add themselves (breaks, errands). Nothing is pre-generated.
+- **Availability** is computed on request: working hours − blocks − bookings, offered every 15 minutes for the chosen service's duration and buffer.
+- **Booking** is a client's appointment: service + staff member + start. Clients can pick a staff member or take whoever is free. Times without an offset (`2030-01-07T09:00`) are read as local business time. Postgres itself rejects overlapping bookings of one staff member (an exclusion constraint), so concurrent requests can never double-book. Cancelled bookings are kept as history.
 
-### Who can manage slots
+### Who can manage what
 
-| Caller | Can manage |
-|---|---|
-| Owner | Every staff member's slots in their business (`staffId` selects whose; default: their own) |
-| Employee | Only their own slots, and sees only their own |
-| Admin | Only a business they own; no implicit access to others (admin tools are on the roadmap) |
+| Caller | Services | Schedule (hours, overrides, blocks) | Agenda |
+|---|---|---|---|
+| Owner | Create, edit, assign staff | Anyone in their business (`staffId`), default self | Whole business |
+| Employee | Read | Only their own | Only their own |
+| Admin | Only a business they own; no implicit access to others (admin tools are on the roadmap) | | |
 
 ## Tech stack
 
@@ -144,8 +146,10 @@ The app container applies pending migrations on start, then runs as a non-root u
 | Authentication | `POST /authentication/sign-up`, `/sign-in`, `/refresh-tokens`, `/logout` |
 | Users | `GET /users`, `GET /users/:id`, `PATCH /users/:id` (admin only) |
 | Business | `POST /business/open`, `GET /business`, `GET /business/:slug`, `PATCH /business/:slug` |
-| Slot management | `POST /slots/daily`, `POST /slots/weekly`, `GET /slots`, `GET /slots/:date`, `PATCH /slots/:date`, `DELETE /slots/:date`, `POST /slots/report` |
-| Booking | `POST /booking/:businessId`, `GET /booking/business/:businessId`, `GET /booking/slot/:id`, `DELETE /booking/slot/:id`, `GET /booking/slots` |
+| Services (owner) | `GET /services`, `POST /services`, `PATCH /services/:id`, `DELETE /services/:id`, `PUT /services/:id/staff` |
+| Services (public) | `GET /business/:slug/services` |
+| Schedule (staff) | `GET\|PUT /schedule/working-hours`, `GET /schedule/overrides`, `PUT\|DELETE /schedule/overrides/:date`, `GET\|POST /schedule/blocks`, `DELETE /schedule/blocks/:id`, `GET /schedule/bookings` |
+| Booking (client) | `GET /booking/business/:businessId/availability`, `POST /booking/:businessId`, `GET /booking/mine`, `GET /booking/:id`, `DELETE /booking/:id` |
 | Health | `GET /health` |
 
 Auth is enforced globally by default; routes that don't need it opt out explicitly via `@Auth(AuthType.None)`. Role checks use the user's current role from the database, so a role change applies immediately without signing in again. Each sign-in is its own refresh-token session (several devices at once); `/logout` ends one.

@@ -313,7 +313,7 @@ C7 config single source (5) Â· C9 update `ARCHITECTURE.md` (5, do it after M3) Â
 - [ ] **G5 Appointments.** Booking becomes master + service + start, with end derived. A Postgres exclusion constraint on `(staff, tstzrange(start, end))` prevents overlaps; the existing transactional flow stays. Folds in F2's booking statuses/history and C4's FK question, since the slot table goes away.
 - [ ] **G6 Migration.** Convert existing slots/bookings (bookings become appointments with a default service), then drop `slot`.
 
-**To agree before starting M6:** whether the time step for start times is fixed (e.g. every 15 min) or equals the service duration; whether a master can set buffer time between appointments; whether price is shown to clients at all.
+**Decided 2026-09-23:** start times on a fixed **15-minute** grid (local time); a **buffer** after each appointment (set on the service, overridable per master like duration and price); **price is shown** to clients, in the business's currency (`Business.currency`, ISO 4217, stored as integer minor units).
 
 ### Later
 

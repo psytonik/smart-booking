@@ -75,7 +75,6 @@ export class BusinessService {
     const newBusiness: Business = this.businessRepo.create({
       ...createBusinessDto,
       employees: [],
-      slots: [],
       address: formattedAddress,
       slug: await this.generateUniqueSlug(createBusinessDto.name),
     });
@@ -118,6 +117,7 @@ export class BusinessService {
         'business.phone_number',
         'business.slug',
         'business.timezone',
+        'business.currency',
       ])
       .orderBy('business.name', 'ASC')
       .take(page.limit)
@@ -137,6 +137,7 @@ export class BusinessService {
         'business.phone_number',
         'business.slug',
         'business.timezone',
+        'business.currency',
       ])
       .where('business.slug = :slug', { slug })
       .getOne();

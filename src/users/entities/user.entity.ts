@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { Role } from '../enums/role.enum';
 import { Business } from '../../business/entities/business.entity';
-import { Booking } from '../../booking/entities/booking.entity';
+import { Booking } from '../../scheduling/entities/booking.entity';
 
 @Entity()
 export class Users {

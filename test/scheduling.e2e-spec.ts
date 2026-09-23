@@ -1,26 +1,36 @@
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import {
+  availability,
   bearer,
   createOwner,
+  createService,
   createTestApp,
-  DAILY_SCHEDULE,
   FUTURE_DAY,
   makeEmployee,
   resetDatabase,
+  setWorkingHours,
   signUp,
-  SlotBody,
   Tokens,
+  utcTimes,
 } from './utils/test-app';
 
-describe('Scheduling: timezones and staff (e2e)', () => {
+describe('Scheduling: hours, overrides, blocks, staff (e2e)', () => {
   let app: INestApplication;
   let owner: { tokens: Tokens; businessId: string; userId: number };
-  let employee: { tokens: Tokens; userId: number };
-  let client: Tokens;
+  let anna: { tokens: Tokens; userId: number };
+  let serviceId: string;
 
   const server = () => app.getHttpServer();
   const auth = (tokens: Tokens) => ({ Authorization: bearer(tokens) });
+  const times = async (query: Record<string, string | number> = {}) =>
+    utcTimes(
+      await availability(app, owner.businessId, {
+        serviceId,
+        from: FUTURE_DAY,
+        ...query,
+      }),
+    );
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -31,122 +41,153 @@ describe('Scheduling: timezones and staff (e2e)', () => {
       'NY Barber',
       'America/New_York',
     );
-    employee = await makeEmployee(app, 'anna@e2e.io', owner.businessId);
-    client = await signUp(app, 'client@e2e.io');
+    anna = await makeEmployee(app, 'anna@e2e.io', owner.businessId);
+    // Owner works 09:00–11:00 on Mondays; Anna 09:00–10:00.
+    await setWorkingHours(app, owner.tokens, [
+      { weekday: 'Monday', intervals: [{ start: '09:00', end: '11:00' }] },
+    ]);
+    await setWorkingHours(
+      app,
+      owner.tokens,
+      [{ weekday: 'Monday', intervals: [{ start: '09:00', end: '10:00' }] }],
+      anna.userId,
+    );
+    // 60 min; Anna does it in 45 min for a different price.
+    serviceId = await createService(
+      app,
+      owner.tokens,
+      [
+        { staffId: owner.userId },
+        { staffId: anna.userId, duration_minutes: 45, price_minor: 6000 },
+      ],
+      { duration_minutes: 60, price_minor: 9000 },
+    );
   });
   afterAll(() => app.close());
 
-  it('stores working hours as UTC instants in the business timezone', async () => {
-    const res = await request(server())
-      .post('/slots/daily')
+  it('offers 15-minute starts in the business timezone, per staff member', async () => {
+    const slots = await availability(app, owner.businessId, {
+      serviceId,
+      from: FUTURE_DAY,
+    });
+    // 09:00 New York in January = 14:00 UTC.
+    const ownerTimes = utcTimes(
+      slots.filter((s) => s.staffId === owner.userId),
+    );
+    const annaSlots = slots.filter((s) => s.staffId === anna.userId);
+    expect(ownerTimes).toEqual(['14:00', '14:15', '14:30', '14:45', '15:00']);
+    expect(utcTimes(annaSlots)).toEqual(['14:00', '14:15']);
+    expect(annaSlots[0].price_minor).toBe(6000);
+  });
+
+  it('filters by staff member', async () => {
+    expect(await times({ staffId: anna.userId })).toEqual(['14:00', '14:15']);
+  });
+
+  it('removes blocked time from availability', async () => {
+    const block = await request(server())
+      .post('/schedule/blocks')
       .set(auth(owner.tokens))
-      .send(DAILY_SCHEDULE)
+      .send({ start: `${FUTURE_DAY}T10:00`, end: `${FUTURE_DAY}T10:30` })
       .expect(201);
 
-    // 09:00 in New York in January is 14:00 UTC.
-    expect(res.body[0].start_time).toBe(`${FUTURE_DAY}T14:00:00.000Z`);
-  });
+    expect(await times({ staffId: owner.userId })).toEqual(['14:00']);
 
-  it('lets the owner create slots for an employee at the same hours', async () => {
     await request(server())
-      .post('/slots/daily')
+      .delete(`/schedule/blocks/${block.body.id}`)
       .set(auth(owner.tokens))
-      .send({ ...DAILY_SCHEDULE, staffId: employee.userId })
-      .expect(201);
-
-    const day = await request(server())
-      .get(`/slots/${FUTURE_DAY}`)
-      .set(auth(owner.tokens))
-      .expect(200);
-    expect(day.body).toHaveLength(6);
+      .expect(204);
+    expect(await times({ staffId: owner.userId })).toHaveLength(5);
   });
 
-  it('shows an employee only their own slots', async () => {
-    const day = await request(server())
-      .get(`/slots/${FUTURE_DAY}`)
-      .set(auth(employee.tokens))
-      .expect(200);
-
-    expect(day.body).toHaveLength(3);
-    expect(
-      day.body.every((s: SlotBody) => s.staff.id === employee.userId),
-    ).toBe(true);
-  });
-
-  it("does not let an employee manage the owner's slots", async () => {
+  it('turns a date into a day off, then back', async () => {
     await request(server())
-      .delete(`/slots/${FUTURE_DAY}?staffId=${owner.userId}`)
-      .set(auth(employee.tokens))
+      .put(`/schedule/overrides/${FUTURE_DAY}`)
+      .set(auth(owner.tokens))
+      .send({ intervals: [] })
+      .expect(200);
+    expect(await times({ staffId: owner.userId })).toEqual([]);
+
+    await request(server())
+      .delete(`/schedule/overrides/${FUTURE_DAY}`)
+      .set(auth(owner.tokens))
+      .expect(204);
+    expect(await times({ staffId: owner.userId })).toHaveLength(5);
+  });
+
+  it('lets an employee set their own hours, but not the owner’s', async () => {
+    await request(server())
+      .put('/schedule/working-hours')
+      .set(auth(anna.tokens))
+      .send({
+        days: [
+          { weekday: 'Monday', intervals: [{ start: '09:00', end: '10:30' }] },
+        ],
+      })
+      .expect(200);
+    expect(await times({ staffId: anna.userId })).toHaveLength(4);
+
+    await request(server())
+      .put('/schedule/working-hours')
+      .set(auth(anna.tokens))
+      .send({ staffId: owner.userId, days: [] })
       .expect(403);
   });
 
-  it('books a chosen staff member using local business time', async () => {
-    const res = await request(server())
-      .post(`/booking/${owner.businessId}`)
-      .set(auth(client))
-      .send({ reserveSlot: `${FUTURE_DAY}T09:00`, staffId: employee.userId })
-      .expect(201);
-    expect(res.body.book_slot).toBe(`${FUTURE_DAY}T14:00:00.000Z`);
-
-    const anna = await request(server())
-      .get(`/slots/${FUTURE_DAY}?staffId=${employee.userId}`)
-      .set(auth(owner.tokens))
-      .expect(200);
-    expect(
-      anna.body.find((s: SlotBody) => s.status === 'booked').start_time,
-    ).toBe(`${FUTURE_DAY}T14:00:00.000Z`);
-  });
-
-  it('falls back to any free staff member and accepts explicit offsets', async () => {
-    // 10:00 New York = 15:00Z; both staff are free, lowest id wins.
-    const res = await request(server())
-      .post(`/booking/${owner.businessId}`)
-      .set(auth(client))
-      .send({ reserveSlot: `${FUTURE_DAY}T15:00:00Z` })
-      .expect(201);
-    expect(res.body.book_slot).toBe(`${FUTURE_DAY}T15:00:00.000Z`);
-  });
-
-  it('keeps bookings when the day is rescheduled, and replaces the break', async () => {
-    const res = await request(server())
-      .patch(`/slots/${FUTURE_DAY}`)
+  it('refuses overlapping working intervals', async () => {
+    await request(server())
+      .put('/schedule/working-hours')
       .set(auth(owner.tokens))
       .send({
-        openingHours: '09:00',
-        timePerClient: '60 min',
-        closingHours: '13:00',
-        lunchDuration: '60 min',
-        staffId: employee.userId,
+        days: [
+          {
+            weekday: 'Tuesday',
+            intervals: [
+              { start: '09:00', end: '12:00' },
+              { start: '11:00', end: '13:00' },
+            ],
+          },
+        ],
       })
-      .expect(200);
-
-    const statuses = res.body.map((s: SlotBody) => s.status);
-    // 09:00 booked (kept), 10:00 free, 11:00 break, 12:00 free.
-    expect(statuses).toEqual(['booked', 'available', 'break', 'available']);
-  });
-
-  it('paginates slot lists and caps the page size', async () => {
-    const page = await request(server())
-      .get('/slots?limit=2&offset=1')
-      .set(auth(owner.tokens))
-      .expect(200);
-    expect(page.body).toHaveLength(2);
-
-    await request(server())
-      .get('/slots?limit=500')
-      .set(auth(owner.tokens))
       .expect(400);
   });
 
-  it('refuses dates in the past in the business timezone', async () => {
+  it('refuses to block time that is already booked, and shows the booking in the agenda', async () => {
+    const client = await signUp(app, 'client@e2e.io');
     await request(server())
-      .post('/slots/daily')
+      .post(`/booking/${owner.businessId}`)
+      .set(auth(client))
+      .send({ serviceId, start: `${FUTURE_DAY}T09:00`, staffId: anna.userId })
+      .expect(201);
+
+    await request(server())
+      .post('/schedule/blocks')
+      .set(auth(anna.tokens))
+      .send({ start: `${FUTURE_DAY}T09:30`, end: `${FUTURE_DAY}T10:00` })
+      .expect(409);
+
+    const agenda = await request(server())
+      .get(`/schedule/bookings?from=${FUTURE_DAY}&to=${FUTURE_DAY}`)
+      .set(auth(anna.tokens))
+      .expect(200);
+    expect(agenda.body.total).toBe(1);
+    expect(agenda.body.bookings[0]).toMatchObject({
+      start_time: `${FUTURE_DAY}T14:00:00.000Z`,
+      end_time: `${FUTURE_DAY}T14:45:00.000Z`,
+      price_minor: 6000,
+      client: { email: 'client@e2e.io' },
+    });
+  });
+
+  it('refuses overrides in the past', async () => {
+    await request(server())
+      .put('/schedule/overrides/2020-01-01')
       .set(auth(owner.tokens))
-      .send({ ...DAILY_SCHEDULE, startDate: '2020-01-01' })
+      .send({ intervals: [] })
       .expect(400);
   });
 
-  it('requires a valid timezone when opening a business', async () => {
+  it('requires a valid timezone and currency when opening a business', async () => {
     const { accessToken } = await signUp(app, 'tz@e2e.io');
     await request(server())
       .post('/business/open')
@@ -158,6 +199,7 @@ describe('Scheduling: timezones and staff (e2e)', () => {
         email: 'tz@e2e.io',
         phone_number: '0',
         timezone: 'Mars/Olympus',
+        currency: 'XXXX',
       })
       .expect(400);
   });
