@@ -43,7 +43,7 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 - **Clients book a service with a master**, not a bare time slot. Services have their own durations (a haircut and a beard trim take different time), and they can differ per master.
 - **Masters control their own day.** Breaks are the master's decision, not something the system carves out. A master may decide to work through lunch if clients want that hour.
 - **Clients never pay in the app.** The platform earns from **business subscriptions**; the plans and billing model are still to be designed.
-- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow).
+- **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow). Web itself is **two separate front-ends**: a **business admin/dashboard app** (owner/staff, behind auth) and a **marketing site** (public: landing pages, business discovery/public pages, pricing — SEO-driven, no auth). Each gets its own deploy pipeline and can move independently; they share only the API.
 - **Notifications:** email first; **WhatsApp / Telegram** (and push for the mobile app) later.
 - **"Smart"** refers to future intelligent features in the client app (e.g. suggestions, reminders).
 - **Every business gets an exclusive, AI-generated design for its page.**
@@ -65,6 +65,7 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 6. **AI-designed business pages**: the AI produces a **design spec (JSON)**, not HTML: palette, typography, layout variant, section styles, copy, image references. Web and the mobile apps render it with their own components. Reasons: one spec renders natively on iOS/Android and web; no third-party HTML/JS (no XSS, no broken layouts); the spec can be validated before publishing (contrast, required blocks like the booking button); owners can pick between variants and tweak them; versions allow rollback. Generation runs as a background job on the existing queue; images need object storage (GCS).
 7. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
 8. **Localization**: EN, FR, RU, HE, IT, ES, DE at launch (AR undecided). Hebrew (and Arabic, if added) is RTL, which the client app, web, and the AI-generated design specs (item 6) all need to support from the start — retrofitting RTL into a layout system built LTR-only is expensive. API responses stay locale-agnostic (ISO codes, UTC timestamps); translated strings live in the clients, business-entered text (name, description) is stored as-is per business.
+9. **Web split in two:** a business admin/dashboard app and a public marketing site, as separate front-ends against the same API. Different concerns (auth'd app vs SEO'd public pages) and different release cadence — no reason to force them into one deploy. The AI-generated business page (item 6) is public and likely belongs to the marketing site, not the dashboard app.
 
 ## Priority plan (RICE, 2026-09-23)
 
