@@ -7,9 +7,17 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the module map, entity model, and
 ## Core concepts
 
 - **Users** have a `role`: `client` (default, books appointments), `business` (owns a storefront), `employee` (works at one), or `admin`.
-- **Business** is a storefront a `client` opens via `POST /business/open`, which promotes them to the `business` role. A business has one owner, any number of employees, a geocoded address, and a slot schedule.
-- **Slot** is a bookable time window belonging to a business, generated in bulk (`POST /slots/daily` or `/weekly`) rather than created one at a time.
-- **Booking** links a `client` to a `Slot` they've reserved. Reserving a slot is transactional and row-locked, so two customers can't book the same slot at once.
+- **Business** is a storefront a `client` opens via `POST /business/open`, which promotes them to the `business` role. A business has one owner, any number of employees, a geocoded address, and an IANA **timezone** (required, e.g. `Europe/Berlin`).
+- **Slot** is a bookable time window belonging to one **staff member** (the owner or an employee) of a business. Slots are generated in bulk (`POST /slots/daily` or `/weekly`) from working hours given in the business's local time, with a lunch break carved out. They are stored as UTC instants, so daylight-saving days are handled correctly. Status is `available`, `booked` or `break`.
+- **Booking** links a `client` to a `Slot`. Clients can pick a staff member (`staffId`) or take whoever is free. Times without an offset (`2030-01-07T09:00`) are read as local business time. Reserving is transactional and row-locked, so two customers can't book the same slot.
+
+### Who can manage slots
+
+| Caller | Can manage |
+|---|---|
+| Owner | Every staff member's slots in their business (`staffId` selects whose; default: their own) |
+| Employee | Only their own slots, and sees only their own |
+| Admin | Only a business they own; no implicit access to others (admin tools are on the roadmap) |
 
 ## Tech stack
 

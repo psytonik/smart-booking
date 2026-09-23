@@ -33,6 +33,21 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * A user who can hold slots in `businessId`: its owner or one of its
+   * employees. Returns null for anyone else.
+   */
+  async findStaffMember(id: number, businessId: string): Promise<Users | null> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .where('user.id = :id', { id })
+      .andWhere(
+        '(user.businessId = :businessId OR user.workplaceId = :businessId)',
+        { businessId },
+      )
+      .getOne();
+  }
+
   async findOne(id: number): Promise<Partial<Users>> {
     const user: Users = await this.userRepository.findOneBy({ id });
     if (!user) {

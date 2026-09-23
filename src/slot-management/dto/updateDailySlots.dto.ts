@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsOptional, Matches } from 'class-validator';
 import {
   CLOCK_TIME_MESSAGE,
   CLOCK_TIME_REGEX,
@@ -35,4 +35,13 @@ export class UpdateDailySlotsDto {
   })
   @Matches(DURATION_REGEX, { message: DURATION_MESSAGE })
   readonly timePerClient: string;
+
+  @ApiPropertyOptional({
+    type: Number,
+    description:
+      'Staff member (owner or employee) the slots belong to. Defaults to the caller; only owners may set someone else.',
+  })
+  @IsOptional()
+  @IsInt()
+  readonly staffId?: number;
 }

@@ -18,7 +18,12 @@ import { plainToClass } from 'class-transformer';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BusinessService } from '../business/business.service';
 import { UsersService } from '../users/users.service';
-import { SlotManagementService } from '../slot-management/slot-management.service';
+import { SlotQueryService } from '../slot-management/slot-query.service';
+import { SlotCommandService } from '../slot-management/slot-command.service';
+import {
+  formatInTimeZone,
+  parseDateTimeIn,
+} from '../slot-management/slot-schedule';
 
 @Injectable()
 export class BookingService {
@@ -29,7 +34,8 @@ export class BookingService {
     private readonly bookingRepository: Repository<Booking>,
     private readonly businessService: BusinessService,
     private readonly usersService: UsersService,
-    private readonly slotManagementService: SlotManagementService,
+    private readonly slotQueries: SlotQueryService,
+    private readonly slotCommands: SlotCommandService,
     private readonly notificationsService: NotificationsService,
     private readonly dataSource: DataSource,
   ) {}
@@ -43,48 +49,58 @@ export class BookingService {
       throw new NotFoundException('Business not found');
     }
     const client: Users = await this.usersService.findActiveUser(user.sub);
-    const ownedBusiness = await this.businessService.findByOwnerId(client.id);
-    if (ownedBusiness?.id === business.id) {
+    if (await this.usersService.findStaffMember(client.id, business.id)) {
       throw new ForbiddenException(
-        'You cannot book a slot in your own business',
+        'You cannot book a slot in a business you work for',
       );
     }
-    const desiredDate = new Date(reserveSlotDto.reserveSlot);
-    desiredDate.setSeconds(0, 0);
+    // Without an explicit offset the time is local to the business.
+    const desiredDate = parseDateTimeIn(
+      reserveSlotDto.reserveSlot,
+      business.timezone,
+    );
+    if (!desiredDate) {
+      throw new BadRequestException('reserveSlot must be an ISO-8601 time');
+    }
+    desiredDate.setUTCSeconds(0, 0);
     if (desiredDate < new Date()) {
       throw new BadRequestException('Cannot book a slot in the past');
     }
-
-    // start_time may carry non-zero seconds depending on how the slot was
-    // created; match at minute granularity like the original comparison did.
     const nextMinute = new Date(desiredDate.getTime() + 60_000);
 
     const booking = await this.dataSource.transaction(async (manager) => {
-      // Lock the target slot row for the duration of the transaction so
-      // concurrent reservation attempts for the same slot serialize instead
-      // of both passing the availability check.
-      const slotToReserve = await manager
+      // Lock the candidate slot rows for the duration of the transaction so
+      // concurrent reservations serialize instead of both passing the
+      // availability check. Without a staffId, any free staff member at that
+      // time will do (lowest id first).
+      const query = manager
         .createQueryBuilder(Slot, 'slot')
         .setLock('pessimistic_write')
         .where('slot.businessId = :businessId', { businessId })
         .andWhere('slot.status = :status', { status: SlotStatus.AVAILABLE })
         .andWhere('slot.start_time >= :desiredDate', { desiredDate })
         .andWhere('slot.start_time < :nextMinute', { nextMinute })
-        .getOne();
+        .orderBy('slot.staffId', 'ASC');
+      if (reserveSlotDto.staffId) {
+        query.andWhere('slot.staffId = :staffId', {
+          staffId: reserveSlotDto.staffId,
+        });
+      }
+      const slotToReserve = await query.getOne();
 
       if (!slotToReserve) {
         throw new NotFoundException('No available slot for the desired time');
       }
 
       const newBooking = new Booking();
-      newBooking.book_slot = desiredDate;
+      newBooking.book_slot = slotToReserve.start_time;
       newBooking.user = client;
       newBooking.business = business;
       newBooking.slot = slotToReserve;
       await manager.save(newBooking);
 
       slotToReserve.booking_by = newBooking;
-      slotToReserve.status = SlotStatus.UNAVAILABLE;
+      slotToReserve.status = SlotStatus.BOOKED;
       await manager.save(slotToReserve);
 
       return newBooking;
@@ -94,15 +110,16 @@ export class BookingService {
     // failure (e.g. email provider outage) shouldn't turn a successful
     // booking into a 500 for the caller.
     try {
+      const when = formatInTimeZone(booking.slot.start_time, business.timezone);
       await this.notificationsService.send(
         booking.user.email,
-        `Service reserved in ${booking.slot.start_time} at ${business.address}`,
+        `Service reserved for ${when} at ${business.address}`,
         `Reservation service from ${business.name}`,
       );
       await this.notificationsService.send(
         business.email,
-        `${client.email} reserved slot at ${booking.slot.start_time}`,
-        `New Reservation ${booking.slot.start_time}`,
+        `${client.email} reserved slot at ${when}`,
+        `New Reservation ${when}`,
       );
     } catch (err) {
       this.logger.error(
@@ -115,17 +132,16 @@ export class BookingService {
     });
   }
 
-  async availableSlots(businessId: string, page: number): Promise<Slot[]> {
-    const start = new Date();
-    start.setDate(start.getDate() + (page - 1) * 7);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 7);
-
-    return this.slotManagementService.findAvailableSlots(
-      businessId,
-      start,
-      end,
-    );
+  /** Free slots in 7-day pages starting now; page 1 is the next 7 days. */
+  async availableSlots(
+    businessId: string,
+    page: number,
+    staffId?: number,
+  ): Promise<Slot[]> {
+    const week = 7 * 24 * 60 * 60 * 1000;
+    const start = new Date(Date.now() + (page - 1) * week);
+    const end = new Date(start.getTime() + week);
+    return this.slotQueries.findAvailableSlots(businessId, start, end, staffId);
   }
 
   async findReservedSlotById(id, currentUser: ActiveUserData) {
@@ -159,14 +175,13 @@ export class BookingService {
     if (!slotToCancel) {
       throw new NotFoundException('Slot not found');
     }
-    const slot: Slot =
-      await this.slotManagementService.findSlotByBooking(slotToCancel);
+    const slot: Slot = await this.slotQueries.findSlotByBooking(slotToCancel);
 
     if (!slot) {
       throw new NotFoundException('Slot not found');
     }
     await this.dataSource.transaction(async (manager) => {
-      await this.slotManagementService.releaseSlot(slot, manager);
+      await this.slotCommands.releaseSlot(slot, manager);
       await manager.remove(slotToCancel);
     });
     return {

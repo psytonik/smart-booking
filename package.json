@@ -26,6 +26,7 @@
     "migration:revert": "npm run build && typeorm migration:revert -d dist/config/data-source.js"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.5.0",
     "@googleapis/calendar": "^16.0.0",
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@nestjs/common": "^11.2.3",

@@ -41,6 +41,12 @@ export class BusinessService {
     });
   }
 
+  async findByEmployeeId(userId: number): Promise<Business | null> {
+    return await this.businessRepo.findOne({
+      where: { employees: { id: userId } },
+    });
+  }
+
   async openBusiness(
     createBusinessDto: CreateBusinessDto,
     user: ActiveUserData,
@@ -107,6 +113,7 @@ export class BusinessService {
         'business.email',
         'business.phone_number',
         'business.slug',
+        'business.timezone',
       ])
       .getMany();
   }
@@ -122,6 +129,7 @@ export class BusinessService {
         'business.email',
         'business.phone_number',
         'business.slug',
+        'business.timezone',
       ])
       .where('business.slug = :slug', { slug })
       .getOne();

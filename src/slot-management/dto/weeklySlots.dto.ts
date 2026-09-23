@@ -1,6 +1,5 @@
 import {
   IsArray,
-  IsDate,
   IsInt,
   IsIn,
   ArrayNotEmpty,
@@ -10,6 +9,7 @@ import {
   Matches,
 } from 'class-validator';
 import {
+  CALENDAR_DAY_REGEX,
   CLOCK_TIME_MESSAGE,
   CLOCK_TIME_REGEX,
   DURATION_MESSAGE,
@@ -18,9 +18,6 @@ import {
   WEEK_DAYS,
 } from '../slot-management.constants';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsNotInPast } from '../../common/validators/is-not-in-past.validator';
-import { parseISO } from 'date-fns';
 
 export class WeeklySlotsDto {
   @ApiProperty({
@@ -40,7 +37,7 @@ export class WeeklySlotsDto {
   })
   @IsOptional()
   @IsArray()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true })
+  @Matches(CALENDAR_DAY_REGEX, { each: true })
   readonly setHolidays?: string[];
 
   @ApiProperty({
@@ -80,9 +77,21 @@ export class WeeklySlotsDto {
   @Matches(DURATION_REGEX, { message: DURATION_MESSAGE })
   readonly timePerClient: string;
 
-  @ApiProperty({ type: String, description: 'Date in ISO format (yyyy-mm-dd)' })
-  @IsDate()
-  @IsNotInPast()
-  @Transform(({ value }) => parseISO(value), { toClassOnly: true })
-  readonly startDate: Date;
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Calendar day (yyyy-mm-dd) in the business timezone; defaults to today',
+  })
+  @IsOptional()
+  @Matches(CALENDAR_DAY_REGEX, { message: '$property must be yyyy-mm-dd' })
+  readonly startDate?: string;
+
+  @ApiPropertyOptional({
+    type: Number,
+    description:
+      'Staff member (owner or employee) the slots belong to. Defaults to the caller; only owners may set someone else.',
+  })
+  @IsOptional()
+  @IsInt()
+  readonly staffId?: number;
 }

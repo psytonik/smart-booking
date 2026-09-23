@@ -71,6 +71,7 @@ describe('Tenant isolation (e2e)', () => {
         address: 'x',
         email: 'a@e2e.io',
         phone_number: '0',
+        timezone: 'Europe/Berlin',
       })
       .expect(409);
   });

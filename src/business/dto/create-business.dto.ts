@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsTimeZone } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateBusinessDto {
@@ -21,4 +21,12 @@ export class CreateBusinessDto {
   @ApiProperty()
   @IsString()
   readonly phone_number: string;
+
+  @ApiProperty({
+    example: 'Europe/Berlin',
+    description:
+      'IANA timezone of the business. Working hours and booking times are local to it.',
+  })
+  @IsTimeZone()
+  readonly timezone: string;
 }

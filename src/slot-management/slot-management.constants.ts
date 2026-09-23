@@ -12,6 +12,9 @@ export const WEEK_DAYS = [
 export const CLOCK_TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const CLOCK_TIME_MESSAGE = '$property must be HH:mm, e.g. 09:00';
 
+/** A calendar day, `yyyy-mm-dd`. */
+export const CALENDAR_DAY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Whole minutes, optionally suffixed: `15`, `15min`, `15 min`. */
 export const DURATION_REGEX = /^\d{1,4}\s*(min)?$/;
 export const DURATION_MESSAGE = '$property must be minutes, e.g. "15 min"';

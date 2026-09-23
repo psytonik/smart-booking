@@ -9,6 +9,7 @@ describe('BusinessService.openBusiness', () => {
     address: 'somewhere',
     email: 'acme@test.io',
     phone_number: '1',
+    timezone: 'Europe/Berlin',
   };
   const caller = { sub: 1 } as any;
 

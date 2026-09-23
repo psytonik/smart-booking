@@ -31,7 +31,9 @@ export async function createTestApp(): Promise<INestApplication> {
 
   const app = moduleRef.createNestApplication();
   configureApp(app);
-  await app.init();
+  // Listen up front: supertest otherwise starts the server per request,
+  // which races when tests fire requests in parallel.
+  await app.listen(0);
   return app;
 }
 
@@ -73,7 +75,13 @@ export async function createOwner(
   app: INestApplication,
   email: string,
   businessName: string,
-): Promise<{ tokens: Tokens; businessId: string; slug: string }> {
+  timezone = 'Europe/Berlin',
+): Promise<{
+  tokens: Tokens;
+  businessId: string;
+  slug: string;
+  userId: number;
+}> {
   const { accessToken } = await signUp(app, email);
   const res = await request(app.getHttpServer())
     .post('/business/open')
@@ -84,13 +92,36 @@ export async function createOwner(
       address: `${businessName} street 1`,
       email,
       phone_number: '000',
+      timezone,
     })
     .expect(201);
   return {
     tokens: await signIn(app, email),
     businessId: res.body.id,
     slug: res.body.slug,
+    userId: res.body.owner.id,
   };
+}
+
+/**
+ * Makes an existing user an employee of a business. There is no API for this
+ * yet (roadmap E1), so it goes straight to the database.
+ */
+export async function makeEmployee(
+  app: INestApplication,
+  email: string,
+  businessId: string,
+): Promise<{ tokens: Tokens; userId: number }> {
+  await signUp(app, email);
+  // For UPDATE ... RETURNING, TypeORM's postgres driver returns [rows, count].
+  const [rows] = await app
+    .get(DataSource)
+    .query(
+      `UPDATE users SET role = 'employee', "workplaceId" = $1 WHERE email = $2 RETURNING id`,
+      [businessId, email],
+    );
+  // Sign in again so the access token carries the employee role.
+  return { tokens: await signIn(app, email), userId: rows[0].id };
 }
 
 export const bearer = (tokens: Tokens) => `Bearer ${tokens.accessToken}`;

@@ -53,6 +53,7 @@ Exit criteria: every item has a regression test (the start of B5). **✅ Done 20
 ### Milestone 3 — Scheduling core rework
 
 **Decision gate first:** settle the E1 question *"do slots belong to the business or to a specific employee?"* before starting. The answer changes the `Slot` model that B1 and B2 rewrite.
+**Decided 2026-09-23: slots belong to a staff member** (owner or employee).
 
 | # | Task | RICE | Note |
 |---|---|---|---|
@@ -60,6 +61,8 @@ Exit criteria: every item has a regression test (the start of B5). **✅ Done 20
 | 13 | B2 Split `SlotStatus` (available/booked/break/closed) | 20 | Same migration window as B1 |
 | 14 | C2 Split `SlotManagementService` (pure calculator + command/query) | 2.4 | ⬆ RICE is low, but it's the same code as B1/B2. Doing it separately means rewriting twice |
 | 15 | B5b Unit tests for the slot calculator (DST, odd durations, breaks) | — | Part of B5 |
+
+**✅ Done 2026-09-23.** Migration `StaffSlotsTimezones` converts existing data (status mapping, owner as staff, `timestamptz` assuming a UTC server); verified up → down → up with seeded old-shape rows and no drift. Also delivered the staff half of E1 (see there). Tests: 42 unit, 21 e2e.
 
 ### Milestone 4 — Hardening before public launch
 
@@ -136,12 +139,14 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 
 ## Phase B — High (correctness / production readiness)
 
-- [ ] **Timezones: move to UTC storage with a per-business timezone** *(decided: international platform)*
+- [x] **Timezones: move to UTC storage with a per-business timezone** *(decided: international platform)*
+  **Done (M3).** `Business.timezone` (IANA, `@IsTimeZone`, required on create; not editable yet, since existing slots would shift). `slot.start_time/end_time` and `booking.book_slot` are `timestamptz`. Slot generation, day ranges, "not in the past" checks and reports all work in the business timezone via `@date-fns/tz`, with per-slot wall-clock times so openings stay local on DST days. `reserveSlot` without an offset is local business time; with an offset it's absolute. Emails format times in the business timezone. Verified server-TZ independent: unit and e2e suites pass with `TZ=Pacific/Auckland`.
   Slots are `timestamp without time zone` and are generated with `setHours` in the **server's** local TZ. `new Date('2026-09-25')` parses as UTC midnight, then `setHours` applies local time, so the result depends on where the server runs. Notification emails print `Date.toString()` in server time.
   Fix: `Business.timezone` (IANA, e.g. `Europe/Berlin`); all columns become `timestamptz`; generate slots with `date-fns-tz` (`fromZonedTime`) in the business TZ, which also handles DST days; API accepts/returns ISO-8601 with offset; emails format in the business TZ. Needs a data migration.
   Files: `src/slot-management/**`, `src/booking/**`, `src/business/entities/business.entity.ts`
 
-- [ ] **One `UNAVAILABLE` status means both "booked" and "lunch break"**
+- [x] **One `UNAVAILABLE` status means both "booked" and "lunch break"**
+  **Done (M3).** `SlotStatus` = `available | booked | break` (string enum). PATCH keeps `booked` slots, regenerates free slots and breaks around them, all in one transaction. DELETE (close day) removes free slots and breaks and leaves bookings. `closed` was left out until something needs it.
   `checkSlotsExistenceByDate` uses "any UNAVAILABLE slot exists" as "this day is already scheduled", which only works because every generated day contains lunch slots. `updateDailySlots` keeps *all* UNAVAILABLE slots, so the old lunch break stays forever when hours change and a new one is added. Reports can't tell breaks from bookings either. The enum is numeric (`0/1`) and stored in a PG enum as `'0'/'1'`, which is fragile.
   Fix: `SlotStatus` becomes string values `available | booked | break | closed`; on update, drop old `break` slots and keep only `booked` ones; add a migration.
   Files: `src/slot-management/enums/slotStatus.enum.ts`, `src/slot-management/slot-management.service.ts`
@@ -176,7 +181,7 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
   - Sign-in reveals whether an email exists (`User does not exists` vs `Password does not match`). Return one generic message.
   - Refresh-token Redis key is `user-${id}` with no TTL: one session per user (logging in on phone logs out laptop) and keys never expire. Use key `user-${id}:${tokenId}` with `EX = refreshTtl`.
   - No logout endpoint (refresh-token revocation).
-  - The JWT role goes stale for up to 1h after `open business` or a role change. Either re-issue tokens on role change or read the role from the DB in `RolesGuard`.
+  - The JWT role goes stale for up to 1h after `open business` or a role change. (Also bites employees once E1 lets owners add them.) Either re-issue tokens on role change or read the role from the DB in `RolesGuard`.
   Files: `src/iam/**`
 
 - [x] **HTTP surface for production**
@@ -190,13 +195,15 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 - [ ] **Response DTOs instead of raw entities**
   Controllers return TypeORM entities (`Booking` with `user` and `business`, `Slot` with `booking.user`, the `openBusiness` response with the full owner). The only thing keeping the password hash out is `select: false`; the next `addSelect` or relation leaks it again. Add `ClassSerializerInterceptor` globally plus per-endpoint response DTOs (`@Expose` whitelist), and document them in Swagger (`@ApiOkResponse({ type })`).
 
-- [ ] **Split `SlotManagementService` (377 lines, 32 imports)**
+- [x] **Split `SlotManagementService` (377 lines, 32 imports)**
+  **Done (M3).** `slot-schedule.ts` (pure calculator, 19 tests incl. DST) · `SlotAccessService` (who manages which business and which staff) · `SlotCommandService` (create/update/close, transactional) · `SlotQueryService` (reads, report, public availability). The old service is removed.
   - `SlotScheduleCalculator`: pure, framework-free (hours, breaks, TZ → slot intervals). Unit-testable without a DB.
   - `SlotCommandService`: create/update/close in transactions.
   - `SlotQueryService`: reads, reports, public availability.
   - Put the repeated `findUser` → `getBusinessByOwner` preamble (present in almost every method) in one place: a guard/decorator that resolves `BusinessContext { user, business, isAdmin }`.
 
-- [ ] **Admin branches are inconsistent**
+- [x] **Admin branches are inconsistent**
+  **Done (M3, inside C2).** One rule: admins get no implicit access to other businesses' slots; they manage only a business they own. Global admin views come back deliberately with F3.
   `findAllSlots` calls `getBusinessByOwner` *before* the admin check, so an admin without a business gets 400 and the admin branch is unreachable. Elsewhere admins get global access implicitly. Pick one model: admin endpoints take an explicit `businessId`.
   Files: `src/slot-management/slot-management.service.ts`
 
@@ -236,6 +243,7 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 ## Phase E — Features to finish (decided)
 
 - [ ] **Employees** *(decided: finish)*
+  **Partly done (M3):** slots belong to a staff member (`Slot.staff`, unique `(staff, start_time)`); owners manage any staff's slots via `staffId`; employees resolve to their workplace and manage/see only their own; clients can book a chosen staff member or anyone free; staff can't book their own business. **Remaining:** owner endpoints to invite/add/remove employees (the e2e tests assign employees via SQL for now), and staff display names for the public availability API.
   Currently: the `Employee` role, `Users.workplace` and `Business.employees` exist, and `/slots` lists `Role.Employee`. But there's no way to add an employee, and `getBusinessByOwner` returns 400 for them.
   To do: owner endpoints to invite/add/remove employees (invite by email, or attach an existing user); resolve an employee's business through `workplace`; define what an employee may do (manage slots: yes; edit business / manage staff: no).
   **To discuss:** whether slots belong to the business or to a specific employee (per-staff calendars: "book with Anna at 14:00"). That changes the `Slot` model (`staffId`, unique `(staff, start_time)`), so decide it before building.

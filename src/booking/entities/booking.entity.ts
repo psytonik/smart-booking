@@ -17,7 +17,7 @@ export class Booking {
   id: string;
 
   @Expose()
-  @Column()
+  @Column({ type: 'timestamptz' })
   book_slot: Date;
 
   @ManyToOne(() => Business, (business) => business.slots)

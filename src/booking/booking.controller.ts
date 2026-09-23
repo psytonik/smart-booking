@@ -15,6 +15,7 @@ import { ActiveUserData } from '../iam/interface/active-user-data.interface';
 import { Auth } from '../iam/authentication/decorator/auth.decorator';
 import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 import { Slot } from '../slot-management/entities/slot.entity';
+import { AvailableSlotsQueryDto } from './dto/availableSlotsQuery.dto';
 
 @ApiTags('Booking')
 @Controller('booking')
@@ -35,10 +36,13 @@ export class BookingController {
   @Get('/business/:businessId')
   async availableSlots(
     @Param('businessId') businessId: string,
-    @Query('page') page?: number,
+    @Query() query: AvailableSlotsQueryDto,
   ): Promise<Slot[]> {
-    page = page && page >= 1 ? page : 1;
-    return await this.bookingService.availableSlots(businessId, page);
+    return await this.bookingService.availableSlots(
+      businessId,
+      query.page ?? 1,
+      query.staffId,
+    );
   }
 
   @ApiBearerAuth()

@@ -27,6 +27,10 @@ export class Business {
   @Column('text')
   address: string;
 
+  /** IANA timezone (e.g. `Europe/Berlin`); working hours are local to it. */
+  @Column({ default: 'UTC' })
+  timezone: string;
+
   @OneToOne(() => Location, (location: Location) => location.business)
   @JoinColumn()
   coords: Location;

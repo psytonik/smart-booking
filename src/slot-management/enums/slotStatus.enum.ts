@@ -1,4 +1,5 @@
 export enum SlotStatus {
-  AVAILABLE,
-  UNAVAILABLE,
+  AVAILABLE = 'available',
+  BOOKED = 'booked',
+  BREAK = 'break',
 }
