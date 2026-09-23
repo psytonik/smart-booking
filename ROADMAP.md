@@ -24,6 +24,7 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 - **Surfaces:** a **mobile app (iOS/Android) for clients**, **web for businesses** (a business app may follow).
 - **Notifications:** email first; **WhatsApp / Telegram** (and push for the mobile app) later.
 - **"Smart"** refers to future intelligent features in the client app (e.g. suggestions, reminders).
+- **Every business gets an exclusive, AI-generated design for its page.**
 
 ### What this changes technically
 
@@ -38,7 +39,8 @@ What the product is, as stated by its owner. This overrides earlier assumptions 
 3. **Remove the automatic lunch break** (`lunchDuration`). Breaks become blocked time the master manages.
 4. **Notification channels**: turn `NotificationsService` into a channel-agnostic dispatcher (email now; WhatsApp, Telegram and mobile push as later adapters) with per-user contact details and preferences. The queue already fits this.
 5. **Mobile-ready API**: versioned routes (`/v1`), because shipped apps can't be force-updated; device tokens for push; stable error format.
-6. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
+6. **AI-designed business pages**: the AI produces a **design spec (JSON)**, not HTML: palette, typography, layout variant, section styles, copy, image references. Web and the mobile apps render it with their own components. Reasons: one spec renders natively on iOS/Android and web; no third-party HTML/JS (no XSS, no broken layouts); the spec can be validated before publishing (contrast, required blocks like the booking button); owners can pick between variants and tweak them; versions allow rollback. Generation runs as a background job on the existing queue; images need object storage (GCS).
+7. **Subscriptions**: `Plan` / `Subscription` per business (e.g. limits on staff count), billing provider TBD (likely Stripe Billing), feature gating. Design first.
 
 ## Priority plan (RICE, 2026-09-23)
 
@@ -318,6 +320,13 @@ C7 config single source (5) · C9 update `ARCHITECTURE.md` (5, do it after M3) �
 - [ ] **G7 Notification channels.** Channel-agnostic dispatcher; user contact details and preferences; WhatsApp, Telegram, mobile push adapters (email adapter = today's `EmailSender`).
 - [ ] **G8 Mobile-ready API.** `/v1` prefix, device-token registration for push, documented error format.
 - [ ] **G9 Subscriptions.** Plans, per-business subscription, limits (staff count, …), billing provider. Needs a product decision on plans first.
+- [ ] **G11 AI-designed business pages.**
+  - `BusinessDesign` (versioned JSON spec, validated against a schema; status draft/published); `DesignGeneration` job on the queue.
+  - Inputs: business type, name, description, owner's style wishes, uploaded logo/photos.
+  - Endpoints: generate N variants → preview → publish → tweak → roll back. The public business endpoint returns the published spec.
+  - Automatic checks before publishing: schema validity, colour contrast (WCAG AA), required blocks present, copy moderation.
+  - Object storage (GCS) for logos, photos and generated images.
+  - **To agree:** does the design also apply to the business screen in the client mobile app (recommended: yes, same spec)? Pick-from-variants vs one result + regenerate? AI-generated imagery or only the owner's photos? Is this a paid-plan feature (ties into G9)?
 - [ ] **G10 "Smart" client features.** Future: suggestions, reminders, rebooking. Out of scope until the core is live.
 
 ## Phase F — Product features: wanted, rules to be discussed
