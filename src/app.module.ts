@@ -12,7 +12,7 @@ import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { RedisThrottlerStorage } from './redis/redis-throttler-storage.service';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis/redis.constants';
 import { AuthenticationController } from './iam/authentication/authentication.controller';
@@ -106,7 +106,7 @@ import { AuthenticationController } from './iam/authentication/authentication.co
                 context.getClass() !== AuthenticationController,
             },
           ],
-          storage: new ThrottlerStorageRedisService(redis),
+          storage: new RedisThrottlerStorage(redis),
         };
       },
     }),
